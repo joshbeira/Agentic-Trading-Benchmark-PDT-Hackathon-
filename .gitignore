@@ -15,6 +15,12 @@ env/
 runs/
 figures/
 
+# An empty clone of the team's GitHub repo (joshbeira/Agentic-Trading-Benchmark-...)
+# appeared here mid-build. It has no commits and no files. Left untouched rather
+# than guessed at -- if that repo should be canonical, add its remote to this one
+# and push; there is no history there to preserve.
+Agentic-Trading-Benchmark-PDT-Hackathon-/
+
 # OS
 .DS_Store
 Thumbs.db

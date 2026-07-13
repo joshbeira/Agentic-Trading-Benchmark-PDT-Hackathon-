@@ -1,0 +1,17 @@
+[project]
+name = "pdtbench"
+version = "1.0.0"
+description = "An environment-authoritative agentic trading benchmark"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "scipy",
+    "yfinance",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q --tb=short"

@@ -159,8 +159,11 @@ The unit of replay. Contains what the agent **saw**, what it **called** (includi
 
 - `obs` is the state at the **close of bar `t`**. It contains **nothing from bar `t+1` or later**. This is enforced by a read-audit wrapper in the engine, not by convention: while the observation is being built, a read of any bar index > `t` raises.
 - `equity_cents` is the mark at the **close of bar `t`**: `cash_t + shares_t × close_t`. The sequence of `equity_cents` over `t = 0..89` **is** the equity curve that every metric is computed from. It is also mirrored inside `obs.portfolio.equity_cents`; the replay test asserts the two agree.
-- `fill` describes the consequence of the action chosen at tick `t`, which lands at **`open_{t+1}`** — so `fill.fill_tick == t + 1` always. It is *not* reflected in this record's `equity_cents`; it shows up in tick `t+1`'s.
+- `fill` describes the consequence of the action chosen at tick `t`, which lands at **`open_{t+1}`** — so `fill.fill_tick == t + 1` for every agent-initiated fill. It is *not* reflected in this record's `equity_cents`; it shows up in tick `t+1`'s.
 - `fill` is `null` on a Wait.
+- **One exception, and only one:** the terminal liquidation on tick 89 carries `side: "liquidation"`, `fill_tick: 89`, and prices at `close_89` rather than at an open. It is the single fill that executes at a price the agent has already seen — and it is unconditional, identical for every agent, and not a decision, so there is nothing there to exploit. Replay checks it against `close_89` and checks every other fill against `open_{t+1}`.
+
+**Share precision.** `shares` is held to 6 decimal places — *exactly* the precision at which it is displayed. This is not cosmetic. When the engine briefly kept more precision internally than it published, the log no longer contained enough information to reproduce its own equity mark (`round(shares x close)` differed by a cent whenever the product landed near a rounding boundary), and an agent that sold precisely the position it had been shown was left holding 4.4e-07 shares of dust. What is displayed and what is marked must be the same number.
 
 **Fields.**
 
@@ -168,7 +171,7 @@ The unit of replay. Contains what the agent **saw**, what it **called** (includi
 |---|---|
 | `decision_point` | `false` for ticks skipped inside a `Wait(n)` (D4). Those records carry `calls: []`, `action: null`, `skipped_by: <source tick>`, and still carry `obs` + `equity_cents` — the equity curve stays one-entry-per-tick, which is what keeps replay simple. |
 | `calls` | **Every** tool call at this tick, in order, including invalid ones. This array is the entire input to the reliability scoreboard. `advanced_time: true` on exactly one call per decision tick (the accepted action) and never on a read or an error. |
-| `action` | The call that was accepted. `forced: true` when the engine imposed a `Wait(1)` via the anti-stall ladder (3 consecutive invalids, read cap, or an un-nudgeable prose reply). |
+| `action` | The call that was accepted. `forced: true` when the engine imposed a `Wait(1)` via the anti-stall ladder (3 consecutive invalids, read cap, or an un-nudgeable prose reply). On a `Wait`, `n_effective` records how many ticks it actually consumed — a `Wait(n)` that would run past the final bar is clamped to land on it rather than rejected, since erroring there would burn an agent's last decision on a technicality. |
 | `friction_cents` | The full 10 bps/side, deterministic (D10). Buy: deducted from the notional before shares are computed. Sell: deducted from the proceeds. |
 | `invalid_count` / `reads_count` | Counts at this tick — redundant with `calls`, kept because the analytics layer plucks them constantly. Replay asserts they agree with `calls`. |
 | `tokens` | `null` for scripted baselines. |

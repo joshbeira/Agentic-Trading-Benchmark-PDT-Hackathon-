@@ -55,6 +55,13 @@ class Config:
     volume_decimals: int = 2
     volume_rolling_window: int = 20
 
+    # The share count is held at exactly the precision it is displayed at. If the
+    # engine kept more precision than it showed, the tick log would not contain
+    # enough information to reproduce its own equity mark (it was off by a cent
+    # whenever shares x close landed near a rounding boundary), and an agent that
+    # sold precisely the position it had been shown would be left holding dust.
+    share_decimals: int = 6
+
     # --- window selection (D12) ---
     regime_bull_threshold: float = 0.08
     regime_bear_threshold: float = -0.08

@@ -223,9 +223,21 @@ def materialize(
     return presented, spec
 
 
-def load_window(path: Path) -> pd.DataFrame:
-    return pd.read_parquet(path)
-
-
 def load_manifest(windows_dir: Path) -> dict:
     return json.loads((windows_dir / "manifest.json").read_text())
+
+
+def load_episode(windows_dir: Path, window_id: str, track: str) -> tuple[pd.DataFrame, dict]:
+    """The presented bars and frozen metadata for one (window, track) pair.
+
+    `track` is "real" or "twin"; a twin carries its source window's id, which is
+    exactly what pairs them in the leakage analysis (D9).
+    """
+    manifest = load_manifest(windows_dir)
+    if track not in ("real", "twin"):
+        raise ValueError(f"track must be 'real' or 'twin', got {track!r}")
+    specs = {s["window_id"]: s for s in manifest[track]}
+    if window_id not in specs:
+        raise KeyError(f"no window {window_id!r} on track {track!r}")
+    series = pd.read_parquet(windows_dir / track / f"{window_id}.parquet")
+    return series, specs[window_id]

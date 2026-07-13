@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Environments (venv lives outside the repo: ~/.venvs/pdt)
+.venv/
+venv/
+env/
+.env
+
+# Run outputs (regenerable from logs + seeds; too big / churny for git)
+runs/
+figures/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

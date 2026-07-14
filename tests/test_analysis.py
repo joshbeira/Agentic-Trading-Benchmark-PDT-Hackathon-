@@ -266,22 +266,30 @@ def test_wallclock_capped_episodes_still_count(tmp_path):
 def test_the_reliability_board_counts_from_the_calls_array(tmp_path):
     """Counted from `calls`, which is the primary record -- not from the cached reliability
     block, so a mismatch between them shows up instead of being inherited."""
+    READS, INVALID, FORCED = 1, 2, 3
     F.make_episode(
         tmp_path / "episodes" / "fumbler__real__w00.jsonl",
         agent=F.agent_spec("fumbler"), track="real", window_id="w00", regime="bull",
         source_ticker="AAPL", bh_daily_vol=0.02, episode_index=0,
         equity_cents=F.equity_from_returns(F.returns_for_sharpe(1.0, 0.02, seed=4)),
-        invalid_calls_per_tick=2, reads_per_tick=1, forced_waits=3,
+        invalid_calls_per_tick=INVALID, reads_per_tick=READS, forced_waits=FORCED,
     )
     run = load_run(tmp_path)
     row = reliability.build(run)[0]
 
-    # 90 ticks: 89 have a Wait, all 90 have 1 read + 2 invalids
-    assert row.n_calls == 89 + 90 * 3
-    assert row.n_invalid == 180
-    assert row.invalid_rate == pytest.approx(180 / (89 + 270))
-    assert row.forced_waits_per_episode == 3
-    assert row.error_breakdown == {"NONPOSITIVE_QTY": 180}
+    # 89 decision ticks (tick 89 is terminal and accepts no calls at all). Each carries its
+    # reads and its invalid attempts; each also carries the one call that advanced the
+    # clock -- except on a forced Wait, where the engine took the turn and the agent never
+    # made that call.
+    n_decision = F.N_SCORED - 1
+    expected_calls = n_decision * (READS + INVALID) + (n_decision - FORCED)
+    expected_invalid = n_decision * INVALID
+
+    assert row.n_calls == expected_calls == 353
+    assert row.n_invalid == expected_invalid == 178
+    assert row.invalid_rate == pytest.approx(expected_invalid / expected_calls)
+    assert row.forced_waits_per_episode == FORCED
+    assert row.error_breakdown == {"NONPOSITIVE_QTY": expected_invalid}
     assert not row.clean
 
 

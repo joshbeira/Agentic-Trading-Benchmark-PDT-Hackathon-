@@ -38,14 +38,19 @@ def episodes(manifest) -> list[tuple[str, str]]:
 
 
 @pytest.fixture
-def make_env(windows_dir, cfg):
+def make_env(windows_dir, cfg, manifest):
     def _make(window_id: str = "w00", track: str = "real", log_path: Path | None = None,
               **meta_extra) -> TradingEnv:
         series, spec = load_episode(windows_dir, window_id, track)
-        return TradingEnv(
-            series, spec, cfg, log_path=log_path,
-            meta_extra={"episode_id": f"test__{track}__{window_id}", "track": track,
-                        "agent": {"id": "test", "kind": "scripted"}, **meta_extra},
-        )
+        # A scripted policy is a memory-less strategy, so it is a `baseline` — "scripted"
+        # was never a value the schema allowed, and the engine now refuses to write it.
+        defaults = {
+            "episode_id": f"test__{track}__{window_id}",
+            "episode_index": 0,
+            "track": track,
+            "agent": {"id": "test", "kind": "baseline", "memory": "none"},
+            "dataset": {"dataset_sha256": manifest["dataset_sha256"]},
+        }
+        return TradingEnv(series, spec, cfg, log_path=log_path, meta_extra=defaults | meta_extra)
 
     return _make

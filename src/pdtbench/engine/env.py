@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import ENGINE_VERSION, Config
+from ..schema import AGENT_KINDS, MEMORY_MODES
 from . import metrics
 from .audit import AuditedBars
 from .tick_log import TickLogger
@@ -92,11 +93,41 @@ class TradingEnv:
         return self._last_obs  # type: ignore[return-value]
 
     def _meta(self) -> dict:
+        """Build the `meta` record, refusing to write one that is not reproducible.
+
+        These three are checked here rather than left to the validator because a log that
+        is missing them is worse than useless — it is *plausible*. Without
+        `dataset_sha256` nobody can prove which data it ran on; without `episode_index`
+        every lane collapses onto one point and the learning curve is a lie; and an agent
+        with no declared `kind` cannot be told apart from a baseline, which is what the
+        difficulty trace is built from.
+        """
+        agent = dict(self._meta_extra.get("agent") or {})
+        if agent.get("kind") not in AGENT_KINDS:
+            raise ValueError(
+                f"agent.kind must be one of {list(AGENT_KINDS)}, got {agent.get('kind')!r}"
+            )
+        agent.setdefault("memory", "none")
+        if agent["memory"] not in MEMORY_MODES:
+            raise ValueError(f"agent.memory must be one of {list(MEMORY_MODES)}")
+
+        episode_index = self._meta_extra.get("episode_index")
+        if not isinstance(episode_index, int):
+            raise ValueError(
+                "episode_index is required: it is the x-axis of the learning curve, and a "
+                "silent default would collapse every memory lane onto a single point"
+            )
+
+        dataset = dict(self._meta_extra.get("dataset") or {})
+        if not dataset.get("dataset_sha256"):
+            raise ValueError("dataset.dataset_sha256 is required: a log that cannot name "
+                             "its data cannot be reproduced")
+
         return {
             "episode_id": self._meta_extra.get("episode_id", "unnamed"),
             "run_id": self._meta_extra.get("run_id"),
-            "episode_index": self._meta_extra.get("episode_index"),
-            "agent": self._meta_extra.get("agent", {"id": "unknown", "kind": "unknown"}),
+            "episode_index": episode_index,
+            "agent": agent,
             "track": self._meta_extra.get("track", "unknown"),
             "window": {
                 "window_id": self.window["window_id"],
@@ -108,7 +139,7 @@ class TradingEnv:
                 "series_sha256": self.window["series_sha256"],
             },
             "config": self.cfg.log_block(),
-            "dataset": self._meta_extra.get("dataset", {}),
+            "dataset": dataset,
             "seeds": self._meta_extra.get("seeds", {"master_seed": self.cfg.master_seed}),
             "code": {
                 "git_commit": self._meta_extra.get("git_commit"),
@@ -431,6 +462,11 @@ class TradingEnv:
                 "bar": bar,
                 "stats": self._stats(t),
                 "portfolio": self._portfolio(bar["close"]),
+                # Emitted on every tick, not only the last one. It was previously patched
+                # in by the terminal liquidation alone, so 89 of 90 logged observations
+                # simply lacked the field -- an optional-by-accident that any consumer
+                # would have had to guess at.
+                "done": False,
             }
         equity = obs["portfolio"]["equity_cents"]
 
@@ -469,7 +505,9 @@ class TradingEnv:
             self._last_obs["done"] = True
 
         if self.logger:
-            self.logger.amend_tick(equity_cents=equity, obs_patch={"portfolio": portfolio})
+            self.logger.amend_tick(
+                equity_cents=equity, obs_patch={"portfolio": portfolio, "done": True}
+            )
             self.logger.end_tick(action=None, fill=fill)
 
         self.done = True

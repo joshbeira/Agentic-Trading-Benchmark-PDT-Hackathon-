@@ -40,7 +40,7 @@ def stable_seed(*parts) -> int:
     """
     return int(hashlib.sha256("::".join(map(str, parts)).encode()).hexdigest()[:8], 16)
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 INITIAL_CENTS = 1_000_000
 N_WARMUP, N_SCORED = 200, 90
 TRADING_DAYS = 252
@@ -161,37 +161,64 @@ def make_episode(
         }
     ]
 
+    is_llm = agent["kind"] == "llm"
     fills_by_tick = {f["_at_tick"]: f for f in fills}
     for t in range(N_SCORED):
-        calls = _synth_calls(t, invalid_calls_per_tick, reads_per_tick, is_last=t == N_SCORED - 1)
+        last = t == N_SCORED - 1
         f = fills_by_tick.get(t)
         fill = {k: v for k, v in f.items() if not k.startswith("_")} if f else None
-        action = (
-            None
-            if t == N_SCORED - 1
-            else {"tool": "Wait", "args": {"n": 1}, "forced": t < forced_waits, "n_effective": 1}
-        )
-        if fill and fill["side"] != "liquidation":
-            action = {"tool": "Buy" if fill["shares_delta"] > 0 else "Sell", "args": {},
-                      "forced": False}
+        forced = t < forced_waits
 
+        # The accepted `action` must BE the call that advanced time -- and on a forced Wait
+        # there is no such call at all, because a forced Wait is the engine taking the turn
+        # away, not something the agent asked for. The fixtures used to get both of these
+        # wrong: they logged a Sell as the action while the advancing call was a Wait, and
+        # they gave forced waits an advancing call the engine never writes.
+        if last:
+            action, calls = None, []  # the terminal tick accepts nothing
+        elif forced:
+            action = {"tool": "Wait", "args": {"n": 1}, "forced": True, "n_effective": 1}
+            calls = _synth_calls(invalid_calls_per_tick, reads_per_tick, advancing=None,
+                                 with_tokens=is_llm)
+        elif fill and fill["side"] != "liquidation":
+            tool = "Buy" if fill["shares_delta"] > 0 else "Sell"
+            args = {"fraction": 1.0}
+            action = {"tool": tool, "args": args, "forced": False}
+            calls = _synth_calls(invalid_calls_per_tick, reads_per_tick,
+                                 advancing=(tool, args), with_tokens=is_llm)
+        else:
+            args = {"n": 1}
+            action = {"tool": "Wait", "args": args, "forced": False, "n_effective": 1}
+            calls = _synth_calls(invalid_calls_per_tick, reads_per_tick,
+                                 advancing=("Wait", args), with_tokens=is_llm)
+
+        mv = int(round(shares[t] * closes[t] * 100))
         records.append(
             {
                 "type": "tick",
                 "t": t,
-                "decision_point": t < N_SCORED - 1,
+                "decision_point": not last,
                 "obs": {
-                    "bar": {"o": closes[t], "h": closes[t], "l": closes[t],
-                            "c": closes[t], "v": 1.0},
+                    "tick": t,
+                    "ticks_remaining": (N_SCORED - 1) - t,
+                    # Long keys. The engine has always written these; the schema and these
+                    # fixtures said {o,h,l,c,v}, and nothing caught it because the analytics
+                    # never read obs.bar. The first consumer that did would have crashed.
+                    "bar": {"open": closes[t], "high": closes[t], "low": closes[t],
+                            "close": closes[t], "volume": 1.0},
                     "stats": {"price": closes[t], "sma20": closes[t], "sma50": closes[t],
                               "vol20_ann": bh_daily_vol * math.sqrt(TRADING_DAYS),
-                              "ep_high": max(closes[: t + 1]), "ep_low": min(closes[: t + 1])},
+                              "ep_high": max(closes[: t + 1]), "ep_low": min(closes[: t + 1]),
+                              "tick": t, "ticks_remaining": (N_SCORED - 1) - t},
                     "portfolio": {
                         "cash_cents": cash[t],
                         "shares": shares[t],
+                        "position_value_cents": mv,
                         "equity_cents": equity_cents[t],
                         "unrealized_pnl_cents": 0,
+                        "avg_cost": round(closes[t], 4) if shares[t] > 0 else None,
                     },
+                    "done": last,
                 },
                 "calls": calls,
                 "action": action,
@@ -199,7 +226,6 @@ def make_episode(
                 "equity_cents": equity_cents[t],
                 "invalid_count": sum(1 for c in calls if not c["ok"]),
                 "reads_count": sum(1 for c in calls if c["ok"] and not c["advanced_time"]),
-                "tokens": None if agent["kind"] == "baseline" else {"in": 3000, "out": 150},
             }
         )
 
@@ -288,21 +314,40 @@ def _synth_fills(shares: list[float], closes: list[float], n_trades: int) -> lis
     return fills
 
 
-def _synth_calls(t: int, n_invalid: int, n_reads: int, is_last: bool) -> list[dict]:
-    calls = []
-    seq = 0
+def _synth_calls(n_invalid: int, n_reads: int, advancing: tuple[str, dict] | None,
+                 with_tokens: bool = True) -> list[dict]:
+    """The calls made during one tick.
+
+    `advancing` is the accepted action, appended last — or None on a forced Wait, where the
+    engine writes no advancing call because the agent never made one.
+
+    Tokens live on the **call**, not on the tick. One LLM completion produces one tool call,
+    so that is where a token count is unambiguous. A tick can hold several calls (reads, a
+    retry after an invalid one), which made the tick-level `tokens` the schema used to show
+    ambiguous: a sum, or the last one? The episode total lives in `episode_end.cost`.
+    """
+    tok = {"in": 3000, "out": 150} if with_tokens else None
+
+    def call(seq, tool, args, ok, advanced, error=None):
+        c = {"seq": seq, "tool": tool, "args": args, "ok": ok,
+             "advanced_time": advanced, "latency_ms": 800.0}
+        if error:
+            c["error"] = error
+        if tok:
+            c["tokens"] = dict(tok)
+        return c
+
+    calls, seq = [], 0
     for _ in range(n_reads):
-        calls.append({"seq": seq, "tool": "getStats", "args": {}, "ok": True,
-                      "advanced_time": False, "latency_ms": 800.0})
+        calls.append(call(seq, "getStats", {}, True, False))
         seq += 1
     for _ in range(n_invalid):
-        calls.append({"seq": seq, "tool": "Buy", "args": {"notional_cents": -1}, "ok": False,
-                      "advanced_time": False, "latency_ms": 800.0,
-                      "error": {"code": "NONPOSITIVE_QTY", "message": "must be > 0"}})
+        calls.append(call(seq, "Buy", {"notional_cents": -1}, False, False,
+                          {"code": "NONPOSITIVE_QTY", "message": "must be > 0"}))
         seq += 1
-    if not is_last:
-        calls.append({"seq": seq, "tool": "Wait", "args": {"n": 1}, "ok": True,
-                      "advanced_time": True, "latency_ms": 800.0})
+    if advancing is not None:
+        tool, args = advancing
+        calls.append(call(seq, tool, args, True, True))
     return calls
 
 

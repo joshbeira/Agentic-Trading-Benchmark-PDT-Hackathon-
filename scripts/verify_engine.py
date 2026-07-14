@@ -55,15 +55,16 @@ def main() -> int:
 
     for pname, make_policy in POLICIES.items():
         for track in tracks:
-            for wid in ids:
+            for i, wid in enumerate(ids):
                 series, spec = load_episode(WINDOWS_DIR, wid, track)
                 log = tmp / f"{pname}__{track}__{wid}.jsonl"
                 env = TradingEnv(
                     series, spec, cfg, log_path=log,
                     meta_extra={
                         "episode_id": f"{pname}__{track}__{wid}",
+                        "episode_index": i,
                         "track": track,
-                        "agent": {"id": pname, "kind": "scripted"},
+                        "agent": {"id": pname, "kind": "baseline", "memory": "none"},
                         "dataset": {"dataset_sha256": man["dataset_sha256"]},
                     },
                 )

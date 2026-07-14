@@ -12,6 +12,7 @@ import json
 import pytest
 
 from pdtbench.engine.replay import load, replay
+from pdtbench.schema import SCHEMA_VERSION
 
 from . import policies as P
 
@@ -71,7 +72,7 @@ def test_the_log_conforms_to_the_schema(make_env, tmp_path):
 
     meta, ticks, ended = load(log)
 
-    assert meta["schema_version"] == "1.0.0"
+    assert meta["schema_version"] == SCHEMA_VERSION
     for key in ("agent", "track", "window", "config", "seeds", "code", "started_at"):
         assert key in meta, key
     assert meta["window"]["series_sha256"]

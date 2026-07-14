@@ -14,9 +14,14 @@ avoided.
 
 **An invalid call does not move the clock.** It returns a structured error and
 the agent tries again. Fumbling the interface costs time, not money (D13) — the
-reliability scoreboard counts it, the trading scoreboard never sees it. An agent
-that cannot stall forever, though: three consecutive invalid calls, or a ninth
-read in one tick, and the engine takes the turn away and forces a Wait.
+reliability scoreboard counts it, the trading scoreboard never sees it.
+
+An agent cannot stall forever, though, and the two limits *chain* rather than fire
+independently (D13): a ninth read in one tick is rejected with `READ_CAP_EXCEEDED`,
+which is an invalid call like any other, and three consecutive invalid calls — of any
+kind — are what make the engine take the turn away and force a `Wait(1)`. So a read
+past the cap does not itself move the clock; it takes three of them. An agent that
+reads and reads gets 11 calls in a tick, not 9.
 """
 
 from __future__ import annotations
@@ -157,7 +162,7 @@ class TradingEnv:
         latency_ms: float | None = None,
         tokens: dict | None = None,
     ) -> ToolResult:
-        args = dict(args or {})
+        args = _canonical_args(args or {})
         if self.done:
             return ToolResult(
                 ok=False,
@@ -407,7 +412,12 @@ class TradingEnv:
 
     def _apply(self, f: Fill) -> None:
         self.cash_cents += f.cash_delta_cents
-        if f.shares_delta > 0:
+        # Branch on the side, not on the sign of shares_delta. A buy small enough that
+        # its share count rounds to 0.0 at 6dp would otherwise fall into the sell branch
+        # and never be credited to the cost basis — and, if the agent were flat, would
+        # zero the basis outright. Unreachable at the price levels these windows span,
+        # which is exactly why it would have sat there.
+        if f.side == "buy":
             self.shares = round(self.shares + f.shares_delta, self.cfg.share_decimals)
             self.cost_basis_cents += f.gross_notional_cents
         else:
@@ -524,7 +534,16 @@ class TradingEnv:
             self.cfg,
         )
 
-    def close_log(self, memory_note_in=None, memory_note_out=None, status="ok") -> dict | None:
+    def close_log(
+        self,
+        memory_note_in=None,
+        memory_note_out=None,
+        status="ok",
+        cost: dict | None = None,
+    ) -> dict | None:
+        """Seal the log. `cost` overrides the token totals accumulated from the calls —
+        it is the only way to record `cost.usd`, which the runner knows and the engine
+        cannot (D5's budget). Omit it and the block falls back to summed tokens."""
         if not self.logger:
             return None
         last = self.cfg.n_scored - 1
@@ -542,8 +561,19 @@ class TradingEnv:
             metrics=self.summary or self.compute_metrics(),
             memory_note_in=memory_note_in,
             memory_note_out=memory_note_out,
+            cost=cost,
             status=status,
         )
+
+    def record_prose_nudge(self) -> None:
+        """The agent replied in prose with no tool call and was nudged (D13).
+
+        The engine cannot see this — it only ever receives tool calls — so the runner
+        reports it. Without this the hook existed and nothing called it, and
+        `reliability.n_prose_nudges` was structurally always 0.
+        """
+        if self.logger:
+            self.logger.record_prose_nudge()
 
     def _agent_obs(self) -> dict:
         obs = dict(self._last_obs or {})
@@ -590,6 +620,25 @@ class TradingEnv:
 
 
 # --------------------------------------------------------------------- helpers
+
+
+def _canonical_args(args: dict) -> dict:
+    """Money is integer cents — including in the args we log.
+
+    `Buy(notional_cents=500000.0)` is ordinary JSON from an LLM, and the engine accepts
+    it, because an integral float *is* an integer. But the raw args are what get written
+    into `calls[].args` and `action.args`, so without this the log would carry a float in
+    a `*_cents` field — contradicting the one promise the format makes about money, in
+    the one place a model is most likely to break it.
+
+    A value that is *not* integral (`500000.5`) is left alone: it is about to be rejected,
+    and the reliability record has to show what the agent actually sent.
+    """
+    out = dict(args)
+    for key, v in out.items():
+        if key.endswith("_cents") and isinstance(v, float) and v.is_integer():
+            out[key] = int(v)
+    return out
 
 
 def _is_num(x: Any) -> bool:

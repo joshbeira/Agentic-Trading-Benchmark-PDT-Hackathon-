@@ -26,6 +26,10 @@ from typing import Any
 
 SCHEMA_VERSION = "1.2.0"
 
+# Share counts are held — and displayed — to exactly this precision, so the log
+# always carries enough information to reproduce its own equity mark.
+SHARE_DECIMALS = 6
+
 TRACKS = ("real", "twin")
 REGIMES = ("bull", "bear", "chop")
 AGENT_KINDS = ("llm", "baseline")
@@ -336,6 +340,32 @@ def validate_record(rec: dict, spec: dict, where: str, errs: list[str]) -> None:
     _check_obj(rec, Obj(spec), where, errs)
 
 
+def _check_money_args(args: Any, where: str, errs: list[str]) -> None:
+    """Money is `int` cents — including inside a free-form `args` object.
+
+    `args` is `Free()` because its shape depends on the tool, and that exemption used
+    to swallow the money rule whole: `Buy(notional_cents=500000.0)` was accepted by the
+    engine (an integral float *is* an integer) and logged verbatim, so a float sat in a
+    `*_cents` field and validated clean. An LLM emitting `500000.0` in JSON is the
+    ordinary case, not an exotic one.
+
+    Applied to `action.args` and to the args of **accepted** calls — the two places the
+    engine is the author. A *rejected* call is exempt on purpose: `calls[]` is the
+    reliability record, and it has to say what the agent actually sent, malformed money
+    included. That is the same reason `calls[].tool` is not enum-constrained.
+    """
+    if not isinstance(args, dict):
+        return
+    for key, v in args.items():
+        if not key.endswith("_cents"):
+            continue
+        if isinstance(v, bool) or not isinstance(v, int):
+            errs.append(
+                f"{where}.{key}: money is integer cents, got "
+                f"{type(v).__name__} ({v!r})"
+            )
+
+
 def validate_episode(path: Path) -> Report:
     """Every structural and cross-record rule the contract makes."""
     rep = Report(path=str(path))
@@ -437,6 +467,11 @@ def validate_episode(path: Path) -> Report:
                 e.append(f"tick[{ti}] call {c.get('seq')}: ok=false with no `error`")
             if c.get("ok") is True and "error" in c:
                 e.append(f"tick[{ti}] call {c.get('seq')}: ok=true carries an `error`")
+            if c.get("ok") is True:
+                _check_money_args(c.get("args"), f"tick[{ti}].calls[{c.get('seq')}].args", e)
+
+        if isinstance(action, dict):
+            _check_money_args(action.get("args"), f"tick[{ti}].action.args", e)
 
         f = t.get("fill")
         if f:

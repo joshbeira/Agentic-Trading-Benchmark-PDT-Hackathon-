@@ -220,7 +220,7 @@ tick, which is what keeps replay and the scoreboard simple.
 | `calls[].tokens` | obj \| null | opt | `{in, out}`. **On the call, not the tick** — one LLM completion is one call, so that is where a token count is unambiguous. A tick can hold several calls, which made the old tick-level `tokens` ambiguous (a sum? the last one?). Episode totals live in `episode_end.cost`. Absent for baselines. |
 | `calls[].latency_ms` | num | opt | |
 | `action` | obj \| null | ✓ | The accepted action. **`action` must BE the call that advanced time** — same `tool`, same `args` — otherwise the log is crediting the agent with something it never did. Enforced. |
-| `action.forced` | bool | ✓ | `true` when the engine imposed a `Wait(1)` (3 consecutive invalids, or the read cap). A forced Wait has **no advancing call at all**, because the agent never made one — the engine took the turn away. Enforced. |
+| `action.forced` | bool | ✓ | `true` when the engine imposed a `Wait(1)`. There is exactly **one** trigger: `max_consecutive_invalid` consecutive invalid calls. The read cap is not a second one — the ninth read in a tick is *rejected* with `READ_CAP_EXCEEDED`, which is an invalid call like any other, and it takes three of them in a row to move the clock. The two limits chain (D13); they do not fire independently. An agent that only reads therefore gets **11** calls in a tick, not 9. A forced Wait has **no advancing call at all**, because the agent never made one — the engine took the turn away. Enforced. |
 | `action.n_effective` | int | opt | `Wait` only. A `Wait(n)` that would run past the final bar is **clamped** to land on it rather than rejected; erroring there would burn an agent's last decision on a technicality. |
 | `fill.friction_cents` | int | ✓ | The full 10 bps/side, deterministic (D10). Buy: deducted from the notional before shares are computed. Sell: deducted from the proceeds. |
 | `invalid_count` / `reads_count` | int | ✓ | Redundant with `calls` — kept because the analytics plucks them constantly. |
@@ -270,6 +270,15 @@ It is written for convenience. The scoreboard **recomputes every field** from
 the replay test asserts agreement. That assertion *is* the "any number on the scoreboard can
 be regenerated from the logs" claim — made testable rather than asserted.
 
+**`std` throughout this table is the _sample_ standard deviation — `ddof = 1`.** It is
+pinned here because it is a free parameter of the ranking metric and nothing else in the
+log records it. NumPy's default is `ddof = 0`, so a third party regenerating the
+scoreboard "from the logs alone" — which this document invites — would silently get
+different numbers: on a buy-and-hold episode the two conventions give a `sharpe_floored`
+of 2.3085 and 2.3216, a 0.57% spread on the number the leaderboard is sorted by. The same
+convention is used for `window.bh_daily_vol`, so both sides of the vol-floor comparison
+agree.
+
 | metric | definition |
 |---|---|
 | `total_return` | `E_89 / E_0 − 1` |
@@ -280,7 +289,7 @@ be regenerated from the logs" claim — made testable rather than asserted.
 | `max_drawdown` | `min(E_t / cummax(E_t) − 1)` |
 | `turnover` | `Σ gross_notional_cents / E_0` over all fills, terminal liquidation included |
 | `fees_paid_cents` | `Σ friction_cents` over all fills, terminal liquidation included |
-| `time_in_market` | Fraction of ticks `0..89` with `shares > 0`. **Ceiling is 88/90 = 0.978, not 1.0** — tick 0 is always flat (the first fill lands at `open_1`) and tick 89 is always flat (post-liquidation). Buy-and-hold sits at the ceiling. |
+| `time_in_market` | Fraction of ticks `0..89` with `shares > 0`. **Ceiling is 88/90 = 0.978, not 1.0** — tick 0 is always flat (the first fill lands at `open_1`) and tick 89 is always flat (post-liquidation). Buy-and-hold sits at the ceiling. **Rebuilding the share count from the fills requires rounding to 6dp and clamping at zero after *every* fill, exactly as the engine does** — a naive `Σ shares_delta` leaves ~3.5e-15 of float dust behind a fully-sold position, so `shares > 0` stays true and a flat tick is counted as invested. That reconstruction returns 0.9889, *above* the 88/90 ceiling this row calls unreachable — which is the tell that it is wrong. |
 | `n_trades` | Count of fills, terminal liquidation **excluded**. |
 
 ### Which episodes reach the scoreboard

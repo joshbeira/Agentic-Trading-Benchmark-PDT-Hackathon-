@@ -34,7 +34,7 @@ def test_an_episode_replays_from_its_log_alone(make_env, tmp_path, cfg, windows_
     env = P.run(make_env("w13", track, log_path=log), POLICIES[name]())
     env.close_log()
 
-    res = replay(log, cfg, windows_dir)
+    res = replay(log, windows_dir)
     assert res.ok, f"{name}/{track} failed replay: {res.failures}"
     assert all(res.checks.values())
 
@@ -48,7 +48,7 @@ def test_replay_checks_are_all_actually_exercised(make_env, tmp_path, cfg, windo
     log = tmp_path / "sma.jsonl"
     env = P.run(make_env("w18", log_path=log), P.SmaCrossover())
     env.close_log()
-    res = replay(log, cfg, windows_dir)
+    res = replay(log, windows_dir)
 
     assert set(res.checks) == {
         "series_hash_matches_log",
@@ -97,7 +97,7 @@ def test_replay_catches_a_tampered_log(make_env, tmp_path, cfg, windows_dir):
     env = P.run(make_env("w00", log_path=log), P.BuyAndHold())
     env.close_log()
 
-    assert replay(log, cfg, windows_dir).ok  # clean, first
+    assert replay(log, windows_dir).ok  # clean, first
 
     lines = log.read_text().splitlines()
     for i, line in enumerate(lines):
@@ -108,7 +108,7 @@ def test_replay_catches_a_tampered_log(make_env, tmp_path, cfg, windows_dir):
             break
     log.write_text("\n".join(lines) + "\n")
 
-    res = replay(log, cfg, windows_dir)
+    res = replay(log, windows_dir)
     assert not res.ok
     assert not res.checks["equity_invariant"]
 
@@ -129,7 +129,7 @@ def test_replay_catches_a_backdated_fill(make_env, tmp_path, cfg, windows_dir):
             break
     log.write_text("\n".join(lines) + "\n")
 
-    res = replay(log, cfg, windows_dir)
+    res = replay(log, windows_dir)
     assert not res.ok
     assert not res.checks["no_lookahead_fills"]
 
@@ -141,7 +141,7 @@ def test_every_window_replays(make_env, tmp_path, cfg, windows_dir, episodes):
         log = tmp_path / f"{track}__{window_id}.jsonl"
         env = P.run(make_env(window_id, track, log_path=log), P.SmaCrossover())
         env.close_log()
-        res = replay(log, cfg, windows_dir)
+        res = replay(log, windows_dir)
         if not res.ok:
             failed.append((window_id, track, res.failures))
 

@@ -12,6 +12,8 @@ import pytest
 
 from pdtbench.agent import cost as C
 from pdtbench.agent import prompt as P
+from pdtbench.agent.tools import TOOL_CHOICE, ServedSurface
+from pdtbench.mcp import BASELINES, TOOLS, EpisodeSession
 
 
 def test_usd_prices_each_bucket_at_its_own_rate():
@@ -139,3 +141,56 @@ def test_an_empty_note_is_not_a_block():
     """Episode 0 of a memory lane has no incoming note; it must look exactly like the
     no-memory arm, not like an arm carrying an empty note."""
     assert P.system_blocks("") == P.system_blocks(None)
+
+
+def _session(windows_dir, tmp_path, window_id="w18", memory="none"):
+    return EpisodeSession.start(
+        window_id=window_id, track="real",
+        agent={"id": "opus_test", "kind": "llm", "memory": memory},
+        episode_index=0, run_dir=tmp_path, run_id="test", windows_dir=windows_dir,
+    )
+
+
+def test_the_model_is_offered_exactly_the_engines_tools(windows_dir, tmp_path):
+    with ServedSurface(_session(windows_dir, tmp_path)) as surface:
+        defs = surface.tools()
+    assert sorted(d["name"] for d in defs) == sorted(TOOLS)
+    for d in defs:
+        assert d["description"], d["name"]
+        assert d["input_schema"]["type"] == "object"
+
+
+def test_the_offered_tools_state_the_fee_schedule(windows_dir, tmp_path):
+    """The descriptions reach the model verbatim. This is the surface D13's disclosure
+    travels on, alongside the system prompt."""
+    with ServedSurface(_session(windows_dir, tmp_path)) as surface:
+        by_name = {d["name"]: d["description"] for d in surface.tools()}
+    for name in ("Buy", "Sell"):
+        assert "10 bps per side" in by_name[name]
+        assert "{fill}" not in by_name[name]
+
+
+def test_parallel_tool_use_is_disabled():
+    """Not a preference. Parallel tool use is on by default, so one completion could emit
+    Buy and Wait together, the engine would advance twice from one decision, and both
+    `action` (one per tick) and `calls[].tokens` ("one completion is one call") would
+    become ambiguous."""
+    assert TOOL_CHOICE == {"type": "auto", "disable_parallel_tool_use": True}
+
+
+def test_a_call_through_the_surface_returns_the_agent_payload(windows_dir, tmp_path):
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        out = surface.call("Wait", {"n": 2})
+    assert out["ok"] is True
+    assert out["observation"]["tick"] == 2
+
+
+def test_an_invalid_call_is_a_result_not_an_exception(windows_dir, tmp_path):
+    """The agent has to see the structured error to correct itself, and the reliability
+    scoreboard has to count it."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        out = surface.call("Wait", {"n": 99})
+    assert out["ok"] is False
+    assert out["error"]["code"] == "WAIT_OUT_OF_RANGE"

@@ -144,7 +144,13 @@ In `schemas/tick_log.md`, in the `episode_end` field table, add rows beneath `co
 | `cost.cache_write_tokens` | int | opt | `usage.cache_creation_input_tokens`, summed over the episode. Absent for baselines. |
 ```
 
-And amend the sentence describing `cost.tokens_in` to say plainly: **`tokens_in` is the uncached remainder, not the prompt size.** The prompt is `tokens_in + cache_read_tokens + cache_write_tokens`. Bump the version header of the document to **1.3.0** and add a changelog line: `1.3.0 — cost gains the cache buckets, so usd is recomputable from the log; action gains forced_reason.`
+And amend the sentence describing `cost.tokens_in` to say plainly: **`tokens_in` is the uncached remainder, not the prompt size.** The prompt is `tokens_in + cache_read_tokens + cache_write_tokens`. Bump the version header of the document to **1.3.0** and add a changelog line:
+
+```markdown
+1.3.0 — cost gains the cache buckets, so usd is recomputable from the log.
+```
+
+**Only the cost half.** `action.forced_reason` also lands in 1.3.0, but in Task 3 — and this document's preamble says that when the module and the page disagree, the page is a bug. Naming a field before it exists makes this commit self-contradicting. Task 3 appends its own half of the line.
 
 - [ ] **Step 6: Update the existing test that pins the version**
 
@@ -587,6 +593,13 @@ In `schemas/tick_log.md`, replace the `action.forced` row's claim that there is 
 ```markdown
 | `action.forced` | bool | ✓ | `true` when the engine imposed a `Wait(1)`. **Two** triggers, named by `action.forced_reason`. `max_consecutive_invalid`: `max_consecutive_invalid` consecutive invalid calls — the read cap is not a separate trigger, it chains into this one (D13), so an agent that only reads gets **11** calls in a tick, not 9. `prose_stall`: a reply carrying no tool call at all, after one nudge — the engine cannot see that, so the runner reports it via `force_wait()`. A forced Wait has **no advancing call at all**, because the agent never made one. Enforced. |
 | `action.forced_reason` | str | opt | `max_consecutive_invalid` \| `prose_stall`. Present whenever `forced` is `true`. Absent otherwise. |
+```
+
+Then extend 1.3.0's changelog line, which Task 1 deliberately left as the cost half only — the field exists as of this commit, so now the page may name it:
+
+```markdown
+1.3.0 — cost gains the cache buckets, so usd is recomputable from the log;
+        action gains forced_reason, because a forced Wait now has two triggers.
 ```
 
 - [ ] **Step 7: Run the full suite**

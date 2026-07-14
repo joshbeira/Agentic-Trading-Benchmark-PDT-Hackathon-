@@ -1,0 +1,26 @@
+# Git for Windows installs with core.autocrlf=true, so a Windows checkout rewrites line
+# endings on the way out of the repo. What gets rewritten is decided by a heuristic that
+# sniffs the first few KB for NUL bytes. That heuristic would very probably get all of
+# this right -- but "very probably", across 63 data files, on a laptop we have never
+# seen, an hour before a demo, is not a thing to leave to chance. So it is stated.
+
+# Market data. Never touch these bytes: a single LF->CRLF substitution inside a parquet
+# file corrupts it, and the failure surfaces as an unreadable dataset, not as a warning.
+*.parquet binary
+*.png      binary
+*.jpg      binary
+*.pdf      binary
+
+# The tick logs are the record the entire benchmark is recomputed from, and the replay
+# verifier rebuilds every number from them. Pinned to LF so a Windows checkout is
+# byte-identical to a Linux one.
+*.jsonl text eol=lf
+*.json  text eol=lf
+
+# Source and docs: LF everywhere, so a Windows contributor cannot accidentally commit a
+# whole-file diff that is nothing but invisible carriage returns.
+*.py   text eol=lf
+*.md   text eol=lf
+*.toml text eol=lf
+*.txt  text eol=lf
+*.cfg  text eol=lf

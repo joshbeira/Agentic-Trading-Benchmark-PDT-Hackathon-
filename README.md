@@ -18,24 +18,30 @@ recognises the chart. Flat means the skill is real.
 
 ## Run the demo
 
-Requires **Python 3.12 or newer**. Nothing else — no API key, no network, no config.
+Requires **Python 3.12 or newer**. Nothing else — no API key, no network, no config. The
+run data is committed, so there is no build step and nothing to generate: `git clone` is
+the setup.
 
 ```bash
 git clone https://github.com/joshbeira/Agentic-Trading-Benchmark-PDT-Hackathon-.git
 cd Agentic-Trading-Benchmark-PDT-Hackathon-
 
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
+
 python -m streamlit run scripts/app.py
 ```
 
-It opens at <http://localhost:8501>. The run data is committed, so there is no build step
-and nothing to generate — `git clone` is the setup.
+It opens at <http://localhost:8501>.
 
-**Read [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) beside it.** It explains what a twin is,
-what every tab shows, and — importantly — the two numbers you should refuse to quote.
+**On Windows**, and for what to do when a step misbehaves, follow
+**[docs/RUNNING.md](docs/RUNNING.md)** — the same four commands with the Windows spellings,
+what you should see at each step, and the failure modes worth knowing before you are
+standing in front of someone.
+
+**Read [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) beside the app.** It explains what a twin
+is, what every tab shows, and — importantly — the two numbers you should refuse to quote.
 
 ### Run the tests
 

@@ -251,3 +251,170 @@ def test_the_invalid_ladder_still_fires_through_the_served_surface(windows_dir, 
     assert ticks[0]["action"]["forced"] is True
     assert ticks[0]["action"]["forced_reason"] == "max_consecutive_invalid"
     assert ticks[0]["invalid_count"] == 3
+
+
+from pdtbench.agent import loop as L
+from pdtbench.engine.replay import load, replay
+from pdtbench.schema import validate_episode
+
+
+class _Block:
+    def __init__(self, type_, **kw):
+        self.type = type_
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+class _Usage:
+    input_tokens, output_tokens = 100, 20
+    cache_read_input_tokens, cache_creation_input_tokens = 500, 50
+
+
+class _Resp:
+    def __init__(self, content, stop_reason="tool_use"):
+        self.content, self.stop_reason, self.usage = content, stop_reason, _Usage()
+
+
+class _FakeClient:
+    """Returns scripted completions. Records every request for inspection."""
+
+    def __init__(self, script):
+        self._script, self.requests = list(script), []
+        self.messages = self
+
+    def create(self, **kw):
+        self.requests.append(kw)
+        return self._script.pop(0) if self._script else _wait_forever()
+
+
+def _tool_use(name, args):
+    return _Resp([_Block("tool_use", name=name, input=args, id="tu_1")])
+
+
+def _wait_forever():
+    return _tool_use("Wait", {"n": 10})
+
+
+def _prose(text="I think I should probably wait here."):
+    return _Resp([_Block("text", text=text)], stop_reason="end_turn")
+
+
+def test_one_completion_is_one_call_is_one_tick(windows_dir, tmp_path):
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([_tool_use("Buy", {"fraction": 1.0})])
+    L.run_episode(session, client)
+    session.finish()
+
+    _meta, ticks, _end = load(session.env.logger.path)
+    assert len(ticks) == 90
+    assert ticks[0]["action"]["tool"] == "Buy"
+    assert len(ticks[0]["calls"]) == 1
+    assert ticks[0]["calls"][0]["tokens"] == {"in": 100, "out": 20}
+    assert ticks[0]["calls"][0]["latency_ms"] >= 0
+
+
+def test_every_request_disables_parallel_tool_use(windows_dir, tmp_path):
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([])
+    L.run_episode(session, client)
+    assert client.requests
+    for req in client.requests:
+        assert req["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+        assert "temperature" not in req  # rejected with a 400 on Opus 4.8
+        assert req["thinking"] == {"type": "adaptive"}
+
+
+def test_a_prose_reply_is_nudged_once_then_the_turn_is_taken_away(windows_dir, tmp_path):
+    """D13. The engine cannot see a reply that made no tool call, so the runner reports
+    it -- and the log says so, rather than crediting the agent with a Wait it chose."""
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([_prose(), _prose()])
+    L.run_episode(session, client)
+    session.finish()
+
+    _meta, ticks, end = load(session.env.logger.path)
+    assert ticks[0]["action"]["forced"] is True
+    assert ticks[0]["action"]["forced_reason"] == "prose_stall"
+    assert end["reliability"]["n_prose_nudges"] == 2
+    assert end["reliability"]["n_forced_waits"] >= 1
+
+
+def test_a_nudged_model_that_recovers_is_not_forced(windows_dir, tmp_path):
+    """One nudge, then a tool call. The nudge is counted; the turn is not taken away."""
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([_prose(), _tool_use("Buy", {"fraction": 1.0})])
+    L.run_episode(session, client)
+    session.finish()
+
+    _meta, ticks, end = load(session.env.logger.path)
+    assert ticks[0]["action"]["tool"] == "Buy"
+    assert ticks[0]["action"]["forced"] is False
+    assert end["reliability"]["n_prose_nudges"] == 1
+
+
+def test_a_refusal_and_a_truncation_both_land_in_the_prose_ladder(windows_dir, tmp_path):
+    """Neither carries a tool call, so neither can advance the clock on its own."""
+    for stop in ("refusal", "max_tokens"):
+        session = _session(windows_dir, tmp_path / stop)
+        client = _FakeClient([_Resp([], stop_reason=stop), _Resp([], stop_reason=stop)])
+        L.run_episode(session, client)
+        session.finish()
+        _meta, ticks, _end = load(session.env.logger.path)
+        assert ticks[0]["action"]["forced_reason"] == "prose_stall", stop
+
+
+def test_the_usage_of_a_turn_that_made_no_tool_call_is_still_billed(windows_dir, tmp_path):
+    """A prose reply costs money. Dropping it would understate the run."""
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([_prose(), _tool_use("Wait", {"n": 10})])
+    usage = L.run_episode(session, client)
+    assert usage.tokens_out >= 20 * len(client.requests)
+
+
+def test_thinking_blocks_are_echoed_back_unchanged(windows_dir, tmp_path):
+    """Required when continuing on the same model. Dropping or editing them breaks the
+    turn."""
+    session = _session(windows_dir, tmp_path)
+    think = _Block("thinking", thinking="hmm")
+    client = _FakeClient([
+        _Resp([think, _Block("tool_use", name="Wait", input={"n": 1}, id="tu_1")]),
+    ])
+    L.run_episode(session, client)
+
+    second = client.requests[1]
+    assistant = [m for m in second["messages"] if m["role"] == "assistant"][0]
+    assert assistant["content"][0] is think
+
+
+def test_the_memory_arms_send_a_byte_identical_frozen_block(windows_dir, tmp_path):
+    """D13, at the wire. If these ever differ the paired comparison is not paired."""
+    a = _session(windows_dir, tmp_path / "a", memory="rolling_note")
+    ca = _FakeClient([])
+    L.run_episode(a, ca, note="w00 was a chop window; I overtraded it.")
+
+    b = _session(windows_dir, tmp_path / "b", memory="none")
+    cb = _FakeClient([])
+    L.run_episode(b, cb, note=None)
+
+    sa, sb = ca.requests[0]["system"], cb.requests[0]["system"]
+    assert sa[0] == sb[0]          # frozen block byte-identical
+    assert len(sa) == 2 and len(sb) == 1
+    assert "overtraded" in sa[1]["text"]
+
+
+def test_an_episode_driven_by_a_fake_model_still_replays(windows_dir, tmp_path):
+    """The runner cannot produce a log the rest of the pipeline rejects."""
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([
+        _tool_use("fetchData", {"lookback": 50}),
+        _tool_use("Buy", {"fraction": 0.5}),
+        _tool_use("getStats", {}),
+        _tool_use("Sell", {"fraction": 1.0}),
+    ])
+    usage = L.run_episode(session, client)
+    session.finish(cost=usage.as_cost_block(L.MODEL))
+
+    log = session.env.logger.path
+    assert validate_episode(log).ok, validate_episode(log).errors[:3]
+    res = replay(log, windows_dir)
+    assert res.ok, res.failures[:3]

@@ -29,6 +29,12 @@ from pathlib import Path
 
 import numpy as np
 
+# Imported, not pinned. A second copy of this literal drifted to "1.2.0" once already,
+# silently, because `meta.schema_version` is an unconstrained `Str()` that nothing
+# cross-checks against the live schema. One import is what makes that drift impossible
+# instead of merely unlikely.
+from pdtbench.schema import SCHEMA_VERSION
+
 
 def stable_seed(*parts) -> int:
     """A seed that does not move between processes.
@@ -40,7 +46,6 @@ def stable_seed(*parts) -> int:
     """
     return int(hashlib.sha256("::".join(map(str, parts)).encode()).hexdigest()[:8], 16)
 
-SCHEMA_VERSION = "1.2.0"
 INITIAL_CENTS = 1_000_000
 N_WARMUP, N_SCORED = 200, 90
 TRADING_DAYS = 252

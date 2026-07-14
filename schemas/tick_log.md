@@ -254,7 +254,7 @@ tick, which is what keeps replay and the scoreboard simple.
 }
 ```
 
-### `cost` fields
+### `cost` Fields
 
 | field | type | req | notes |
 |---|---|---|---|
@@ -349,5 +349,4 @@ Replay (`pdtbench.engine.replay`) additionally re-prices every fill against the 
 
 ## Changelog
 
-- 1.3.0 — cost gains the cache buckets, so usd is recomputable from the log; action gains
-  forced_reason.
+- 1.3.0 — cost gains the cache buckets, so usd is recomputable from the log.

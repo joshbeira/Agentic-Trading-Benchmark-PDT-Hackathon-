@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +69,7 @@ class EpisodeSession:
         self.agent = agent
         self.cfg = cfg
         self._status = "ok"
+        self._pending: dict | None = None
         self._t0 = time.monotonic()
         self._obs: dict = env.reset()
 
@@ -161,9 +163,17 @@ class EpisodeSession:
         latency_ms: float | None = None,
         tokens: dict | None = None,
     ) -> dict:
-        """Dispatch one tool call. Never raises on a bad call — an invalid call is a
+        """Dispatch one tool call. Never raises on a bad call -- an invalid call is a
         *result*, not an exception: the agent has to see the structured error to correct
-        itself, and the reliability scoreboard has to count it."""
+        itself, and the reliability scoreboard has to count it.
+
+        An explicit `latency_ms`/`tokens` wins over an enclosing `attributing()` scope.
+        """
+        if self._pending is not None:
+            if latency_ms is None:
+                latency_ms = self._pending.get("latency_ms")
+            if tokens is None:
+                tokens = self._pending.get("tokens")
         if not self.env.done and self.elapsed_s > self.cfg.episode_wallclock_cap_s:
             self._cap_out()
 
@@ -171,6 +181,27 @@ class EpisodeSession:
         if res.obs is not None:
             self._obs = res.obs
         return res.as_agent_payload()
+
+    @contextmanager
+    def attributing(self, latency_ms: float | None = None, tokens: dict | None = None):
+        """Attach one completion's latency and tokens to the call made inside this scope.
+
+        The MCP tool functions reach `call()` with a tool and args and nothing else, so a
+        model driving the served surface would otherwise log no `latency_ms` and no
+        `tokens` at all. The runner knows both, and because `disable_parallel_tool_use`
+        makes one completion exactly one call, there is no ambiguity about which call
+        they belong to -- which is precisely the reason the schema puts tokens on the
+        call rather than on the tick.
+
+        Nested scopes restore the outer value, and a baseline that never opens one is
+        unaffected.
+        """
+        prev = self._pending
+        self._pending = {"latency_ms": latency_ms, "tokens": tokens}
+        try:
+            yield self
+        finally:
+            self._pending = prev
 
     def record_prose_nudge(self) -> None:
         self.env.record_prose_nudge()

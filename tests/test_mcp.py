@@ -418,6 +418,53 @@ def test_the_wallclock_cap_flags_the_episode_but_still_scores_it(windows_dir, tm
     assert end["reliability"]["n_forced_waits"] == 0
 
 
+def test_attributing_reaches_a_call_made_through_the_served_surface(windows_dir, tmp_path):
+    """The MCP tool functions take only a tool and args -- there is no parameter for the
+    latency and tokens the schema wants on calls[]. Without this the served surface
+    silently drops per-call attribution, which is most of the reliability record."""
+    baseline = BASELINES["flat"]()
+    session = EpisodeSession.start(
+        window_id=KNOWN, track="real", agent=baseline.agent(),
+        episode_index=0, run_dir=tmp_path, run_id="test", windows_dir=windows_dir,
+    )
+    transport = _ViaMCP(session)
+    try:
+        with session.attributing(latency_ms=123.4, tokens={"in": 11, "out": 22}):
+            transport.call("getStats", {})
+        while not session.done:
+            transport.call("Wait", {"n": 10})
+    finally:
+        transport.close()
+    session.finish()
+
+    _meta, ticks, _end = load(session.env.logger.path)
+    first = ticks[0]["calls"][0]
+    assert first["tool"] == "getStats"
+    assert first["latency_ms"] == 123.4
+    assert first["tokens"] == {"in": 11, "out": 22}
+
+
+def test_attribution_does_not_leak_past_its_scope(windows_dir, tmp_path):
+    """A baseline makes no API calls and must keep logging no tokens."""
+    baseline = BASELINES["flat"]()
+    session = EpisodeSession.start(
+        window_id=KNOWN, track="real", agent=baseline.agent(),
+        episode_index=0, run_dir=tmp_path, run_id="test", windows_dir=windows_dir,
+    )
+    with session.attributing(latency_ms=1.0, tokens={"in": 1, "out": 1}):
+        session.call("getStats", {})
+    session.call("ViewWallet", {})
+    while not session.done:
+        session.call("Wait", {"n": 10})
+    session.finish()
+
+    _meta, ticks, _end = load(session.env.logger.path)
+    inside, outside = ticks[0]["calls"][0], ticks[0]["calls"][1]
+    assert inside["tokens"] == {"in": 1, "out": 1}
+    assert "tokens" not in outside
+    assert "latency_ms" not in outside
+
+
 def test_the_run_manifest_is_written_before_any_episode(windows_dir, tmp_path):
     """A run that dies at episode 3 of 240 should still be interpretable. Write the
     manifest last and the survivors are a directory of orphan logs."""

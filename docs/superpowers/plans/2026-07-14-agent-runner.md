@@ -2060,7 +2060,47 @@ git commit -m "agent: the probe adapter for D9 (the harness already existed)"
 
 **Files:**
 - Create: `src/pdtbench/agent/lanes.py`, `scripts/run_agents.py`
+- Modify: `src/pdtbench/mcp/run.py` (`write_run_manifest` gains `prices`)
 - Test: `tests/test_agent.py`
+
+**Spec R4, second half — the price table must be stamped into the run manifest.** `agent/cost.py`'s docstring already asserts this ("stamped into the run manifest so the analysis reads prices from the run rather than from whatever this table says on the day someone re-runs it"), and nothing implements it yet. A `usd` recomputed a year from now against a changed `PRICES` would silently disagree with the log it came from — the same class of unreproducibility the whole `config_sha256`/`dataset_sha256` discipline exists to prevent.
+
+- [ ] **Step 0: Stamp the prices into the manifest**
+
+Write the failing test first, in `tests/test_agent.py`:
+
+```python
+def test_the_run_manifest_stamps_the_price_table(windows_dir, tmp_path):
+    """`usd` is only auditable if the log names the prices it was computed with. A table
+    that lives solely in source drifts the moment anyone edits it."""
+    from pdtbench.mcp.run import write_run_manifest
+
+    man = write_run_manifest(tmp_path, list(LN.ARMS), windows_dir=windows_dir,
+                             run_id="t", prices=C.PRICES)
+    assert man["prices"] == C.PRICES
+    assert man["prices"]["claude-opus-4-8"]["input"] == 5.00
+    assert json.loads((tmp_path / "run_manifest.json").read_text())["prices"] == C.PRICES
+
+
+def test_a_baseline_run_manifest_carries_no_prices(windows_dir, tmp_path):
+    """Baselines call no API. Additive, exactly like the cost block's cache buckets."""
+    from pdtbench.mcp.run import write_run_manifest
+
+    man = write_run_manifest(tmp_path, [], windows_dir=windows_dir, run_id="t")
+    assert "prices" not in man
+```
+
+Then in `src/pdtbench/mcp/run.py`, add a keyword-only `prices: dict | None = None` to `write_run_manifest`, and after the `seeds` entry:
+
+```python
+    if prices is not None:
+        # The analysis recomputes `usd` from the logged token buckets; it must read the
+        # rates this run actually paid, not whatever `agent/cost.py` says on the day
+        # someone re-runs it. Omitted for baseline runs, which call no API.
+        manifest["prices"] = dict(prices)
+```
+
+`scripts/run_agents.py` (Step 4 below) passes `prices=PRICES`. Note `run_baselines.py` calls `write_run_manifest` without it and must keep working — the 240 baseline logs and their manifest are the regression check.
 
 **Interfaces:**
 - Consumes: `agent.loop.run_episode`, `agent.memory.Lane`/`write_note`, `agent.cost.Usage`, `mcp.run.write_run_manifest`, `EpisodeSession`, `schema.validate_episode`, `engine.replay.replay`.
@@ -2346,7 +2386,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import anthropic  # noqa: E402
 
-from pdtbench.agent.cost import Usage  # noqa: E402
+from pdtbench.agent.cost import PRICES, Usage  # noqa: E402
 from pdtbench.agent.lanes import ARMS, TRACKS, run_lane  # noqa: E402
 from pdtbench.agent.loop import MODEL  # noqa: E402
 from pdtbench.agent.probe import run_probe  # noqa: E402
@@ -2367,7 +2407,10 @@ def main() -> int:
     client = anthropic.Anthropic()
     run_id = new_run_id()
     run_dir = args.out or (RUNS_DIR / run_id)
-    write_run_manifest(run_dir, list(ARMS), DEFAULT, WINDOWS_DIR, run_id=run_id)
+    # prices= is spec R4: `usd` must be recomputable from the run, not from whatever
+    # agent/cost.py happens to say the day someone re-runs the analysis.
+    write_run_manifest(run_dir, list(ARMS), DEFAULT, WINDOWS_DIR, run_id=run_id,
+                       prices=PRICES)
 
     if args.dry_run:
         return _dry_run(run_dir, client, run_id)

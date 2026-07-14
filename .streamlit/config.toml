@@ -1,0 +1,17 @@
+# The demo runs on a projector in front of judges, so the theme commits to light:
+# dark rooms make dark UIs bloom and the tables are the point. Colours match the
+# tokens at the top of scripts/app.py -- change them in both places or not at all.
+
+[theme]
+base = "light"
+primaryColor = "#17457A"
+backgroundColor = "#F5F6F8"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0E1419"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from pdtbench.agent import cost as C
+from pdtbench.agent import prompt as P
 
 
 def test_usd_prices_each_bucket_at_its_own_rate():
@@ -70,9 +71,6 @@ def test_an_unknown_model_is_refused_rather_than_priced_at_zero():
         C.Usage(tokens_in=1).usd("claude-not-a-model")
 
 
-from pdtbench.agent import prompt as P
-
-
 def test_the_prompt_discloses_everything_d13_says_it_must():
     """Hiding the metric would test goal inference -- a different experiment."""
     text = P.SYSTEM_PROMPT
@@ -84,6 +82,20 @@ def test_the_prompt_discloses_everything_d13_says_it_must():
         "90",                     # the episode length
     ):
         assert required.lower() in text.lower(), required
+
+
+def test_the_prompt_does_not_lie_about_the_environment():
+    """The prompt states the config in English and cannot interpolate it -- that would
+    break the cache prefix. So the drift is caught here instead."""
+    from pdtbench.config import DEFAULT as D
+
+    assert ("$10,000" in P.SYSTEM_PROMPT) == (D.initial_capital_cents == 1_000_000)
+    assert ("10 bps" in P.SYSTEM_PROMPT) == (D.fee_bps + D.slippage_bps == 10)
+    assert ("at most 8" in P.SYSTEM_PROMPT) == (D.max_reads_per_tick == 8)
+    assert ("Three consecutive" in P.SYSTEM_PROMPT) == (D.max_consecutive_invalid == 3)
+    assert ("up to 10 bars" in P.SYSTEM_PROMPT) == (D.max_wait == 10)
+    assert ("200 further bars" in P.SYSTEM_PROMPT) == (D.fetch_lookback_cap == 200)
+    assert ("0.25 * bh_daily_vol" in P.SYSTEM_PROMPT) == (D.vol_floor_multiple == 0.25)
 
 
 def test_the_prompt_carries_no_invalidator():
@@ -98,7 +110,9 @@ def test_the_prompt_carries_no_invalidator():
     assert isinstance(P.SYSTEM_PROMPT, str)  # a constant, not a factory
     assert str(datetime.date.today().year) not in P.SYSTEM_PROMPT
     assert not re.search(r"\{[a-z_]+\}", P.SYSTEM_PROMPT)  # no unformatted placeholder
-    assert P.system_prompt_sha256() == P.system_prompt_sha256()
+    assert P.system_prompt_sha256() == (
+        "b0586a912db9c5221e6214161bbb20f90c61e1d36b32e8437869211bdf353720"
+    ), "the frozen prompt changed -- this is the experiment's identity; update deliberately"
 
 
 def test_the_memory_arms_share_a_byte_identical_frozen_block():

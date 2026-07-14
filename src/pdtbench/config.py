@@ -128,7 +128,11 @@ class Config:
             "fetch_lookback_default": self.fetch_lookback_default,
             "fetch_lookback_cap": self.fetch_lookback_cap,
             "episode_wallclock_cap_s": self.episode_wallclock_cap_s,
+            # Both free parameters of the ranking metric are pinned here, so the
+            # scoreboard reads them from the log rather than from whatever the
+            # default happens to be on the day someone re-runs the analysis.
             "vol_floor_multiple": self.vol_floor_multiple,
+            "trading_days_per_year": self.trading_days_per_year,
             "n_warmup": self.n_warmup,
             "n_scored": self.n_scored,
         }

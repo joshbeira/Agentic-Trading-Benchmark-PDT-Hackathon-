@@ -108,6 +108,9 @@ Per-regime distribution panels are the primary trading result, and **"vs buy-and
 ### Stated openly on the slide (a feature, not a fix)
 The standard error of an episode Sharpe estimated from 90 daily bars is ≈ 1.6–1.7 annualized units. **n = 30 paired windows is power-limited.** We report bootstrap confidence intervals, expect them to overlap, and use the paired Wilcoxon signed-rank test for the A-vs-B claim. Owning this preempts the "your error bars are enormous" question — and it is the honest description of what one quarter of daily data can tell you.
 
+### Reporting policy — no claim without an effect size
+Every headline claim (learning, memorization) must clear **both** a confidence interval that excludes zero **and** an effect-size floor. This is not pedantry: a t-test on a series with almost no residual variance will certify anything. During the build, the buy-and-hold baseline's excess-Sharpe slope came back "statistically significant" at **−1.0e-07 per episode, p = 0.013** — seven orders of magnitude below anything tradeable, and it would have been reported as a finding. The floors are `0.005` Sharpe/episode for learning (≈ 0.15 Sharpe over a 30-episode lane) and `0.10` Sharpe per unit identifiability for memorization. Significance without magnitude is noise with a certificate, and this is the audience least likely to let that pass.
+
 ---
 
 ## Derived mechanics (implementation-level consequences of D1–D14)

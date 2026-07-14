@@ -1,4 +1,18 @@
-# Tick-Log Schema (JSONL) — v1.0.0
+# Tick-Log Schema (JSONL) — v1.1.0
+
+> **v1.1.0** pins three things v1.0.0 left open, each of which the analytics layer
+> could not be built without. See `schemas/analysis_artifacts.md` for the full list of
+> open questions and the answer taken for each — including the two files this schema
+> names but never specified (`run_manifest.json`, `probe/*.json`).
+>
+> - `episode_index` is the index within the `(agent, track)` **memory lane**, `0..29`.
+>   It is the x-axis of the learning curve, and it denotes the same window for every
+>   agent because all agents walk `presentation_order`.
+> - `agent.kind` ∈ `"llm"` | `"baseline"`, and `agent.memory` ∈ `"rolling_note"` |
+>   `"none"`. The learning curve's difficulty trace is `kind == "baseline"`.
+> - `config.trading_days_per_year` (252) is now in the config block. The annualization
+>   factor is a free parameter of the ranking metric and belongs pinned next to
+>   `vol_floor_multiple`, not hardcoded in prose.
 
 The tick log is the **only** artifact the scoreboard is allowed to read. Every number we report — median Sharpe, drawdown, turnover, fees, invalid-call rate, learning curve, leakage scatter — must be regenerable from these files and nothing else. The UI reads them too, which is why live mode and replay mode are the same code path (D14).
 
@@ -71,7 +85,8 @@ Pins *everything* needed to reconstruct the episode: which data, which config, w
     "fetch_lookback_default": 50,
     "fetch_lookback_cap": 200,
     "episode_wallclock_cap_s": 1200,
-    "vol_floor_multiple": 0.25
+    "vol_floor_multiple": 0.25,
+    "trading_days_per_year": 252
   },
 
   "dataset": {
@@ -241,8 +256,12 @@ Definitions, so the scoreboard is unambiguous:
 | `max_drawdown` | `min(E_t / cummax(E_t) − 1)` |
 | `turnover` | `Σ gross_notional_cents / E_0` over all fills (terminal liquidation included) |
 | `fees_paid_cents` | `Σ friction_cents` over all fills + terminal liquidation |
-| `time_in_market` | fraction of ticks `0..89` with `shares > 0` |
+| `time_in_market` | fraction of ticks `0..89` with `shares > 0`. **Ceiling is 88/90 = 0.978, not 1.0** — tick 0 is always flat (the first fill lands at `open_1`) and tick 89 is always flat (post-liquidation). Buy-and-hold sits at the ceiling. |
 | `n_trades` | count of fills, terminal liquidation excluded |
+
+`sharpe_raw` with `std(r) == 0` (an agent that never trades) is **`0`, not `NaN`**. The floored Sharpe is `0` there too — D2's point is that the two coincide at zero with no discontinuity.
+
+**Episode status and the scoreboard.** `wallclock_capped` episodes **count** toward the trading scoreboard: the agent dithered until the clock ran out and the remaining ticks auto-Waited, which is a real (bad) trading outcome. `agent_error` episodes are **excluded** from the trading scoreboard and reported on the reliability board with a count — a provider or harness failure is not a trading result, and scoring a crash as "flat" would reward crashing on a bad window. The scoreboard prints the excluded count on every run, so an exclusion is never invisible.
 
 ---
 

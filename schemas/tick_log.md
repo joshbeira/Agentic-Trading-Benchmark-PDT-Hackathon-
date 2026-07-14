@@ -220,7 +220,8 @@ tick, which is what keeps replay and the scoreboard simple.
 | `calls[].tokens` | obj \| null | opt | `{in, out}`. **On the call, not the tick** — one LLM completion is one call, so that is where a token count is unambiguous. A tick can hold several calls, which made the old tick-level `tokens` ambiguous (a sum? the last one?). Episode totals live in `episode_end.cost`. Absent for baselines. |
 | `calls[].latency_ms` | num | opt | |
 | `action` | obj \| null | ✓ | The accepted action. **`action` must BE the call that advanced time** — same `tool`, same `args` — otherwise the log is crediting the agent with something it never did. Enforced. |
-| `action.forced` | bool | ✓ | `true` when the engine imposed a `Wait(1)`. There is exactly **one** trigger: `max_consecutive_invalid` consecutive invalid calls. The read cap is not a second one — the ninth read in a tick is *rejected* with `READ_CAP_EXCEEDED`, which is an invalid call like any other, and it takes three of them in a row to move the clock. The two limits chain (D13); they do not fire independently. An agent that only reads therefore gets **11** calls in a tick, not 9. A forced Wait has **no advancing call at all**, because the agent never made one — the engine took the turn away. Enforced. |
+| `action.forced` | bool | ✓ | `true` when the engine imposed a `Wait(1)`. **Two** triggers, named by `action.forced_reason`. `max_consecutive_invalid`: `max_consecutive_invalid` consecutive invalid calls — the read cap is not a separate trigger, it chains into this one (D13), so an agent that only reads gets **11** calls in a tick, not 9. `prose_stall`: a reply carrying no tool call at all, after one nudge — the engine cannot see that, so the runner reports it via `force_wait()`. A forced Wait has **no advancing call at all**, because the agent never made one. Enforced. |
+| `action.forced_reason` | str | opt | `max_consecutive_invalid` \| `prose_stall`. Present whenever `forced` is `true`. Absent otherwise. |
 | `action.n_effective` | int | opt | `Wait` only. A `Wait(n)` that would run past the final bar is **clamped** to land on it rather than rejected; erroring there would burn an agent's last decision on a technicality. |
 | `fill.friction_cents` | int | ✓ | The full 10 bps/side, deterministic (D10). Buy: deducted from the notional before shares are computed. Sell: deducted from the proceeds. |
 | `invalid_count` / `reads_count` | int | ✓ | Redundant with `calls` — kept because the analytics plucks them constantly. |
@@ -349,4 +350,5 @@ Replay (`pdtbench.engine.replay`) additionally re-prices every fill against the 
 
 ## Changelog
 
-- 1.3.0 — cost gains the cache buckets, so usd is recomputable from the log.
+- 1.3.0 — cost gains the cache buckets, so usd is recomputable from the log;
+        action gains forced_reason, because a forced Wait now has two triggers.

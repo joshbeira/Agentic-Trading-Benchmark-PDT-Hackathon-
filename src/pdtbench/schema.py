@@ -35,6 +35,9 @@ REGIMES = ("bull", "bear", "chop")
 AGENT_KINDS = ("llm", "baseline")
 MEMORY_MODES = ("rolling_note", "none")
 STATUSES = ("ok", "wallclock_capped", "agent_error")
+#: Why the engine took the turn away. Two triggers, and the log names which -- crediting
+#: the agent with a Wait it never chose would misattribute a decision.
+FORCED_REASONS = ("max_consecutive_invalid", "prose_stall")
 FILL_SIDES = ("buy", "sell", "liquidation")
 TOOLS = ("Buy", "Sell", "Wait", "ViewWallet", "ViewPortfolio", "fetchData", "getStats")
 ERROR_CODES = (
@@ -118,6 +121,7 @@ ACTION = Obj({
     "tool": Str(enum=TOOLS),
     "args": Free(),
     "forced": Bool(),
+    "forced_reason": Str(required=False, enum=FORCED_REASONS),
     "n_effective": Int(required=False),  # Wait only
 }, nullable=True)
 

@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import ENGINE_VERSION, Config
-from ..schema import AGENT_KINDS, MEMORY_MODES
+from ..schema import AGENT_KINDS, FORCED_REASONS, MEMORY_MODES
 from . import metrics
 from .audit import AuditedBars
 from .tick_log import TickLogger
@@ -281,7 +281,8 @@ class TradingEnv:
             # Reachable only at t <= 88 (tick 89 is terminal), so one tick always fits.
             self.consecutive_invalid = 0
             self._advance(
-                {"tool": str(Tool.WAIT), "args": {"n": 1}, "forced": True, "n_effective": 1},
+                {"tool": str(Tool.WAIT), "args": {"n": 1}, "forced": True,
+                 "forced_reason": "max_consecutive_invalid", "n_effective": 1},
                 fill=None, n=1, source_tick=self.t,
             )
             return ToolResult(
@@ -574,6 +575,36 @@ class TradingEnv:
         """
         if self.logger:
             self.logger.record_prose_nudge()
+
+    def force_wait(self, reason: str) -> ToolResult:
+        """Take the turn away for a cause the engine cannot see (D13).
+
+        The engine only ever receives tool calls, so a reply that made none is invisible
+        to it -- the runner has to report it. `forced_reason` is what keeps the log
+        honest: without it this Wait is indistinguishable from one the agent chose, and
+        `reliability.n_prose_nudges` would have no partner on the action side.
+
+        The invalid ladder raises its own forced Wait internally and does not come
+        through here.
+        """
+        if reason not in FORCED_REASONS:
+            raise ValueError(f"forced_reason must be one of {list(FORCED_REASONS)}, got {reason!r}")
+        if self.done:
+            return ToolResult(
+                ok=False, tool=Tool.WAIT,
+                error=ToolError(ErrorCode.EPISODE_OVER, "the episode has ended"),
+            )
+        self.consecutive_invalid = 0
+        self._advance(
+            {"tool": str(Tool.WAIT), "args": {"n": 1}, "forced": True,
+             "forced_reason": reason, "n_effective": 1},
+            fill=None, n=1, source_tick=self.t,
+        )
+        return ToolResult(
+            ok=True, tool=Tool.WAIT, advanced_time=True, forced_wait=True,
+            obs=self._agent_obs(),
+            note=f"forced Wait(1): {reason}. No P&L penalty -- but you lost a decision.",
+        )
 
     def _agent_obs(self) -> dict:
         obs = dict(self._last_obs or {})

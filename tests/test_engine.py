@@ -340,3 +340,60 @@ def test_selling_a_displayed_position_is_not_a_rounding_error(make_env):
     res = env.step("Sell", {"shares": shown})
     assert res.ok, "an agent that sells precisely what it was shown must not be refused"
     assert env.shares == 0.0
+
+
+def test_force_wait_takes_the_turn_away_and_says_why(make_env, tmp_path):
+    """The engine cannot see a reply that made no tool call, so the runner reports it.
+    The log must record the cause -- a forced Wait attributed to the agent is a lie
+    about who made the decision."""
+    from pdtbench.engine.replay import load
+
+    log = tmp_path / "prose.jsonl"
+    env = make_env("w00", log_path=log)
+    env.reset()
+    t0 = env.t
+
+    res = env.force_wait("prose_stall")
+
+    assert res.advanced_time and res.forced_wait
+    assert env.t == t0 + 1
+    env.step("Wait", {"n": 10})  # keep the episode moving
+    while not env.done:
+        env.step("Wait", {"n": 10})
+    env.close_log()
+
+    _meta, ticks, end = load(log)
+    tick0 = ticks[0]
+    assert tick0["action"]["forced"] is True
+    assert tick0["action"]["forced_reason"] == "prose_stall"
+    assert tick0["action"]["tool"] == "Wait"
+    assert tick0["fill"] is None
+    assert end["reliability"]["n_forced_waits"] >= 1
+
+
+def test_the_invalid_ladder_names_its_own_trigger(make_env, tmp_path):
+    """The pre-existing forced Wait must say which trigger fired, now that there are two."""
+    from pdtbench.engine.replay import load
+
+    log = tmp_path / "ladder.jsonl"
+    env = make_env("w00", log_path=log)
+    env.reset()
+    for _ in range(env.cfg.max_consecutive_invalid):
+        env.step("Teleport", {"to": "moon"})
+    while not env.done:
+        env.step("Wait", {"n": 10})
+    env.close_log()
+
+    _meta, ticks, _end = load(log)
+    assert ticks[0]["action"]["forced"] is True
+    assert ticks[0]["action"]["forced_reason"] == "max_consecutive_invalid"
+
+
+def test_force_wait_after_the_episode_is_over_is_refused(make_env):
+    env = make_env("w00")
+    env.reset()
+    while not env.done:
+        env.step("Wait", {"n": 10})
+    res = env.force_wait("prose_stall")
+    assert not res.ok
+    assert res.error.code == "EPISODE_OVER"

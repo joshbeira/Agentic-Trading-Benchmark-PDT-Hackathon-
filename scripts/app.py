@@ -225,15 +225,19 @@ st.markdown(
         margin-bottom: 1.1rem;
       }}
       .stat {{ background: {PANEL}; padding: 0.7rem 0.95rem 0.75rem; }}
+      /* The label wraps rather than truncating: on a narrow window an ellipsis turns
+         "sharpe edge (real − twin)" into "sharpe edge (real − tw…", which is a headline
+         figure whose name the reader cannot finish. min-height reserves the second line
+         so the values stay on one baseline across the row whether they wrap or not. */
       .stat-l {{
         font-family: {MONO};
         font-size: 0.6rem;
-        letter-spacing: 0.11em;
+        line-height: 1.45;
+        min-height: 2.9em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
         color: {INK_3};
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        text-wrap: balance;
       }}
       .stat-v {{
         font-family: {MONO};

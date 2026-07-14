@@ -1074,6 +1074,63 @@ def test_an_invalid_call_is_a_result_not_an_exception(windows_dir, tmp_path):
         out = surface.call("Wait", {"n": 99})
     assert out["ok"] is False
     assert out["error"]["code"] == "WAIT_OUT_OF_RANGE"
+
+
+def test_a_hallucinated_tool_name_is_a_result_not_an_exception(windows_dir, tmp_path):
+    """FastMCP validates the tool name before the engine ever sees the call and raises
+    `ToolError` for an unknown one -- `Wait(n=99)` above never exercises that path, it is
+    schema-valid and reaches the engine directly. Across 120 episodes Opus will eventually
+    hallucinate a tool name, and today that would kill the episode instead of teaching it.
+
+    The result has to match what the direct path would have produced, and the engine has
+    to have counted it -- an uncounted invalid call can never advance the
+    `max_consecutive_invalid` ladder."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        out = surface.call("Purchase", {})
+    assert out["ok"] is False
+    assert out["error"]["code"] == "UNKNOWN_TOOL"
+    assert session.env.consecutive_invalid == 1
+
+
+def test_a_schema_invalid_argument_type_is_a_result_not_an_exception(windows_dir, tmp_path):
+    """FastMCP validates the argument schema before the engine ever sees the call and
+    raises `ToolError` for a mistyped argument -- `n="two"` fails FastMCP's own pydantic
+    coercion, unlike `n=99` above, which is schema-valid and merely domain-invalid."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        out = surface.call("Wait", {"n": "two"})
+    assert out["ok"] is False
+    assert out["error"]["code"] == "SCHEMA_ERROR"
+    assert session.env.consecutive_invalid == 1
+
+
+def test_the_invalid_ladder_still_fires_through_the_served_surface(windows_dir, tmp_path):
+    """A test that only checks the return value could pass while the fall-through quietly
+    swallowed the exception and returned a look-alike payload without ever reaching the
+    engine. Proving the ladder still fires -- three consecutive invalid calls forcing a
+    Wait, exactly as on the direct path -- proves the engine is the one that saw and
+    counted every one of them."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        first = surface.call("Purchase", {})            # UNKNOWN_TOOL, invalid #1
+        second = surface.call("Purchase", {})            # UNKNOWN_TOOL, invalid #2
+        third = surface.call("Wait", {"n": "two"})        # SCHEMA_ERROR, invalid #3 -> ladder
+
+    assert first.get("forced_wait") is not True
+    assert second.get("forced_wait") is not True
+    assert third["ok"] is False
+    assert third["forced_wait"] is True
+    assert "consecutive invalid calls" in third["note"]
+    assert session.env.consecutive_invalid == 0  # the ladder reset it on firing
+
+    session.finish()
+    from pdtbench.engine.replay import load
+
+    _meta, ticks, _end = load(session.env.logger.path)
+    assert ticks[0]["action"]["forced"] is True
+    assert ticks[0]["action"]["forced_reason"] == "max_consecutive_invalid"
+    assert ticks[0]["invalid_count"] == 3
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -1106,6 +1163,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+
+from mcp.server.fastmcp.exceptions import ToolError
 
 from ..mcp.server import build_server
 from ..mcp.session import EpisodeSession
@@ -1160,19 +1219,46 @@ class ServedSurface:
         Never raises on a bad call: an invalid call is a *result*. Open the session's
         `attributing()` scope around this to record the completion's latency and tokens.
         """
-        blocks = self._loop.run_until_complete(self._server.call_tool(name, args or {}))
+        try:
+            blocks = self._loop.run_until_complete(self._server.call_tool(name, args or {}))
+        except ToolError:
+            # FastMCP validates the name and the arg schema before the engine ever sees
+            # them, so an unknown tool or a bad type dies here -- while the engine would
+            # have called it UNKNOWN_TOOL / SCHEMA_ERROR, counted it, and advanced the
+            # invalid ladder. Hand it to the engine, which is the only authority on what
+            # an invalid call is. Keeps the served path logging byte-identically to the
+            # direct path.
+            return self.session.call(name, args or {})
+        # blocks[0] is safe only because every tool in server.py returns a bare `-> dict`,
+        # which makes FastMCP skip structured output and return a plain content-block
+        # list. Tighten any tool's return annotation there (dict[str, Any], a TypedDict,
+        # a pydantic model) and call_tool() starts returning an
+        # (unstructured, structured) tuple instead -- blocks[0] would then be that whole
+        # tuple, not a content block, and `.text` would raise AttributeError.
         return json.loads(blocks[0].text)
 
     def close(self) -> None:
         self._loop.close()
 ```
 
+**On the fall-through:** FastMCP validates the tool *name* and the argument *schema*
+before the engine ever sees a call, and raises `mcp.server.fastmcp.exceptions.ToolError`
+for both an unknown tool and a mistyped argument -- `Wait(n=99)` alone does not exercise
+this; it is schema-valid and reaches the engine directly. Catching `ToolError` and
+re-dispatching through `session.call()` makes the engine the single authority on what an
+invalid call is: it is the only path that counts the call and advances
+`max_consecutive_invalid`, so a FastMCP-side rejection has to reach it too, or 120
+episodes of an agent that occasionally hallucinates a tool name would die on the first
+one instead of being corrected -- and a bad name spammed forever would never trip the
+anti-stall ladder. Catch **only** `ToolError`; a bare `except Exception` would also
+swallow a real engine bug.
+
 - [ ] **Step 4: Run the tests**
 
 ```bash
 ~/.venvs/pdt/bin/python -m pytest tests/test_agent.py -q
 ```
-Expected: PASS, 15 tests.
+Expected: PASS, 19 tests.
 
 - [ ] **Step 5: Commit**
 

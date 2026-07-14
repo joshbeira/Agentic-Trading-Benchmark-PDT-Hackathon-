@@ -194,3 +194,60 @@ def test_an_invalid_call_is_a_result_not_an_exception(windows_dir, tmp_path):
         out = surface.call("Wait", {"n": 99})
     assert out["ok"] is False
     assert out["error"]["code"] == "WAIT_OUT_OF_RANGE"
+
+
+def test_a_hallucinated_tool_name_is_a_result_not_an_exception(windows_dir, tmp_path):
+    """FastMCP validates the tool name before the engine ever sees the call and raises
+    `ToolError` for an unknown one -- `Wait(n=99)` above never exercises that path, it is
+    schema-valid and reaches the engine directly. Across 120 episodes Opus will eventually
+    hallucinate a tool name, and today that would kill the episode instead of teaching it.
+
+    The result has to match what the direct path would have produced, and the engine has
+    to have counted it -- an uncounted invalid call can never advance the
+    `max_consecutive_invalid` ladder."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        out = surface.call("Purchase", {})
+    assert out["ok"] is False
+    assert out["error"]["code"] == "UNKNOWN_TOOL"
+    assert session.env.consecutive_invalid == 1
+
+
+def test_a_schema_invalid_argument_type_is_a_result_not_an_exception(windows_dir, tmp_path):
+    """FastMCP validates the argument schema before the engine ever sees the call and
+    raises `ToolError` for a mistyped argument -- `n="two"` fails FastMCP's own pydantic
+    coercion, unlike `n=99` above, which is schema-valid and merely domain-invalid."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        out = surface.call("Wait", {"n": "two"})
+    assert out["ok"] is False
+    assert out["error"]["code"] == "SCHEMA_ERROR"
+    assert session.env.consecutive_invalid == 1
+
+
+def test_the_invalid_ladder_still_fires_through_the_served_surface(windows_dir, tmp_path):
+    """A test that only checks the return value could pass while the fall-through quietly
+    swallowed the exception and returned a look-alike payload without ever reaching the
+    engine. Proving the ladder still fires -- three consecutive invalid calls forcing a
+    Wait, exactly as on the direct path -- proves the engine is the one that saw and
+    counted every one of them."""
+    session = _session(windows_dir, tmp_path)
+    with ServedSurface(session) as surface:
+        first = surface.call("Purchase", {})            # UNKNOWN_TOOL, invalid #1
+        second = surface.call("Purchase", {})            # UNKNOWN_TOOL, invalid #2
+        third = surface.call("Wait", {"n": "two"})        # SCHEMA_ERROR, invalid #3 -> ladder
+
+    assert first.get("forced_wait") is not True
+    assert second.get("forced_wait") is not True
+    assert third["ok"] is False
+    assert third["forced_wait"] is True
+    assert "consecutive invalid calls" in third["note"]
+    assert session.env.consecutive_invalid == 0  # the ladder reset it on firing
+
+    session.finish()
+    from pdtbench.engine.replay import load
+
+    _meta, ticks, _end = load(session.env.logger.path)
+    assert ticks[0]["action"]["forced"] is True
+    assert ticks[0]["action"]["forced_reason"] == "max_consecutive_invalid"
+    assert ticks[0]["invalid_count"] == 3

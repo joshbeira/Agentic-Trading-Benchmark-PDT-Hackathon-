@@ -17,6 +17,8 @@ from __future__ import annotations
 import asyncio
 import json
 
+from mcp.server.fastmcp.exceptions import ToolError
+
 from ..mcp.server import build_server
 from ..mcp.session import EpisodeSession
 
@@ -70,7 +72,22 @@ class ServedSurface:
         Never raises on a bad call: an invalid call is a *result*. Open the session's
         `attributing()` scope around this to record the completion's latency and tokens.
         """
-        blocks = self._loop.run_until_complete(self._server.call_tool(name, args or {}))
+        try:
+            blocks = self._loop.run_until_complete(self._server.call_tool(name, args or {}))
+        except ToolError:
+            # FastMCP validates the name and the arg schema before the engine ever sees
+            # them, so an unknown tool or a bad type dies here -- while the engine would
+            # have called it UNKNOWN_TOOL / SCHEMA_ERROR, counted it, and advanced the
+            # invalid ladder. Hand it to the engine, which is the only authority on what
+            # an invalid call is. Keeps the served path logging byte-identically to the
+            # direct path.
+            return self.session.call(name, args or {})
+        # blocks[0] is safe only because every tool in server.py returns a bare `-> dict`,
+        # which makes FastMCP skip structured output and return a plain content-block
+        # list. Tighten any tool's return annotation there (dict[str, Any], a TypedDict,
+        # a pydantic model) and call_tool() starts returning an
+        # (unstructured, structured) tuple instead -- blocks[0] would then be that whole
+        # tuple, not a content block, and `.text` would raise AttributeError.
         return json.loads(blocks[0].text)
 
     def close(self) -> None:

@@ -366,7 +366,20 @@ def test_a_nudged_model_that_recovers_is_not_forced(windows_dir, tmp_path):
 
 
 def test_a_refusal_and_a_truncation_both_land_in_the_prose_ladder(windows_dir, tmp_path):
-    """Neither carries a tool call, so neither can advance the clock on its own."""
+    """Neither carries a tool call, so neither can advance the clock on its own.
+
+    A refusal can decline before emitting any output, so `content == []` is a real
+    response shape -- and echoing it back is a 400 ("all messages must have non-empty
+    content except for the optional final assistant message"), which kills the episode
+    instead of nudging it. So this asserts on what actually went out: no turn may carry
+    empty content. Reading the ladder out of the log alone cannot catch it -- the fake
+    client never 400s, so the log looks correct while the real wire would have died.
+
+    Two consecutive `user` turns are expected here and deliberately not asserted against:
+    with no reply to echo, the honest conversation is the nudge followed by the forced
+    turn. The API merges them, and no assistant reply is lost to the merge. Inventing
+    placeholder assistant content to keep roles alternating would put words in the
+    model's mouth it never emitted."""
     for stop in ("refusal", "max_tokens"):
         session = _session(windows_dir, tmp_path / stop)
         client = _FakeClient([_Resp([], stop_reason=stop), _Resp([], stop_reason=stop)])
@@ -374,6 +387,12 @@ def test_a_refusal_and_a_truncation_both_land_in_the_prose_ladder(windows_dir, t
         session.finish()
         _meta, ticks, _end = load(session.env.logger.path)
         assert ticks[0]["action"]["forced_reason"] == "prose_stall", stop
+
+        # Both empty completions are consumed by request[2]; the ladder fired by then.
+        assert len(client.requests) >= 3, (stop, len(client.requests))
+        for i, req in enumerate(client.requests):
+            for m in req["messages"]:
+                assert m["content"], (stop, i, m["role"], req["messages"])
 
 
 def test_the_usage_of_a_turn_that_made_no_tool_call_is_still_billed(windows_dir, tmp_path):

@@ -41,8 +41,10 @@ _NUDGE = (
 def _forced_turn(t: int) -> str:
     """The turn after a forced Wait. Names the tick it is actually on.
 
-    Structural, not cosmetic: the prose branch has just appended an assistant turn, and
-    ending a request there is a prefill, which 4.8 rejects with a 400.
+    Structural, not cosmetic: where the prose branch echoed the assistant turn, ending a
+    request there is a prefill, which 4.8 rejects with a 400. Where it echoed nothing --
+    a refusal with no content blocks -- the request would otherwise carry no new turn at
+    all.
     """
     return (
         f"You made no tool call, so a Wait(1) was imposed for you. You are now at tick "
@@ -119,11 +121,20 @@ def run_episode(
                 # The reply the nudge is about has to be in the conversation the nudge
                 # arrives in. Dropping it also strips its thinking blocks, which the
                 # echo-unchanged constraint forbids.
-                messages.append({"role": "assistant", "content": resp.content})
+                #
+                # Guarded, because a refusal can decline before emitting anything: an
+                # empty `content` on the wire is a 400 ("all messages must have non-empty
+                # content"), which would kill the episode instead of nudging it. Nothing
+                # was said, so there is nothing to echo -- and nothing is invented to fill
+                # the turn, because a placeholder would put words in the model's mouth it
+                # never emitted. The cost is two consecutive `user` turns on that path,
+                # which the API merges; benign, since no reply is lost to the merge.
+                if resp.content:
+                    messages.append({"role": "assistant", "content": resp.content})
                 if nudged:
                     session.env.force_wait("prose_stall")
                     nudged = False
-                    # A user turn here is structural: ending on the assistant turn above
+                    # A user turn here is structural: ending on an echoed assistant turn
                     # would be a prefill, which 4.8 rejects with a 400. It names the tick
                     # it is actually on -- the history stays.
                     messages.append({"role": "user", "content": _forced_turn(session.t)})

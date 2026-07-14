@@ -62,32 +62,24 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `tests/test_schema.py`:
+Add to `tests/test_schema.py`. It already has `_valid_log(tmp_path)` (builds a valid log via `fixtures.make_episode`) and `_mutate(path, fn)` (rewrites records in place); use those — the file validates whole files with `validate_episode`, and does not import `validate_record`.
 
 ```python
-def test_the_cost_block_admits_the_cache_buckets():
+def test_the_cost_block_admits_the_cache_buckets(tmp_path):
     """With caching, `tokens_in` is only the uncached remainder. A log that cannot name
-    what it read from cache cannot regenerate its own `usd`."""
-    rec = _episode_end()  # existing helper in this file; returns a minimal valid record
-    rec["cost"] = {
-        "tokens_in": 1234,
-        "tokens_out": 567,
-        "cache_read_tokens": 89_012,
-        "cache_write_tokens": 3_456,
-        "usd": 0.123456,
-    }
-    errs: list[str] = []
-    validate_record(rec, EPISODE_END, "episode_end", errs)
-    assert errs == []
+    what it read from cache cannot regenerate its own `usd`. The schema rejects
+    undeclared fields, so these have to be declared to be writable at all."""
+    log = _mutate(_valid_log(tmp_path), lambda r: r[-1]["cost"].update({
+        "cache_read_tokens": 89_012, "cache_write_tokens": 3_456, "usd": 0.123456,
+    }))
+    rep = validate_episode(log)
+    assert rep.ok, rep.errors[:3]
 
 
-def test_a_baseline_cost_block_without_cache_buckets_still_validates():
-    """The 240 baseline logs on disk have no cache fields. This change is additive."""
-    rec = _episode_end()
-    rec["cost"] = {"tokens_in": 0, "tokens_out": 0}
-    errs: list[str] = []
-    validate_record(rec, EPISODE_END, "episode_end", errs)
-    assert errs == []
+def test_a_cost_block_without_the_cache_buckets_still_validates(tmp_path):
+    """The 240 baseline logs on disk have no cache fields, and the fixture writes none.
+    This change is additive or it is a breaking one."""
+    assert validate_episode(_valid_log(tmp_path)).ok
 
 
 def test_the_schema_version_has_one_source_of_truth():
@@ -97,8 +89,6 @@ def test_the_schema_version_has_one_source_of_truth():
     assert schema.SCHEMA_VERSION is config.SCHEMA_VERSION
     assert config.SCHEMA_VERSION == "1.3.0"
 ```
-
-If `_episode_end()` / `validate_record` / `EPISODE_END` are named differently in `tests/test_schema.py`, use the file's existing helpers — read it first and match them.
 
 - [ ] **Step 2: Run to verify they fail**
 
@@ -156,14 +146,28 @@ In `schemas/tick_log.md`, in the `episode_end` field table, add rows beneath `co
 
 And amend the sentence describing `cost.tokens_in` to say plainly: **`tokens_in` is the uncached remainder, not the prompt size.** The prompt is `tokens_in + cache_read_tokens + cache_write_tokens`. Bump the version header of the document to **1.3.0** and add a changelog line: `1.3.0 — cost gains the cache buckets, so usd is recomputable from the log; action gains forced_reason.`
 
-- [ ] **Step 6: Run the full suite**
+- [ ] **Step 6: Update the existing test that pins the version**
+
+`tests/test_schema.py::test_the_schema_version_is_stamped` asserts the literal:
+
+```python
+    assert meta["schema_version"] == SCHEMA_VERSION == "1.2.0"
+```
+
+The literal is deliberate — it stops a bump from sliding through unnoticed. Update it, do not loosen it:
+
+```python
+    assert meta["schema_version"] == SCHEMA_VERSION == "1.3.0"
+```
+
+- [ ] **Step 7: Run the full suite**
 
 ```bash
 ~/.venvs/pdt/bin/python -m pytest -q
 ```
-Expected: PASS, 181 tests (178 + 3 new).
+Expected: PASS, 181 tests (178 + 3 new). If `test_the_schema_version_is_stamped` fails, Step 6 was skipped.
 
-- [ ] **Step 7: Verify the 240 baseline logs still validate**
+- [ ] **Step 8: Verify the 240 baseline logs still validate**
 
 ```bash
 ~/.venvs/pdt/bin/python -c "
@@ -176,7 +180,7 @@ print(f'{len(logs)-len(bad)}/{len(logs)} valid'); assert not bad, bad[:3]"
 ```
 Expected: `240/240 valid`. (If `runs/baselines_dev` is absent, regenerate with `~/.venvs/pdt/bin/python scripts/run_baselines.py --out runs/baselines_dev --validate` first.)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/pdtbench/config.py src/pdtbench/schema.py schemas/tick_log.md tests/test_schema.py
@@ -794,11 +798,17 @@ def test_the_prompt_discloses_everything_d13_says_it_must():
 
 
 def test_the_prompt_carries_no_invalidator():
-    """Caching is a prefix match and this text is the prefix. A date or a uuid here
-    would silently cost ~6x -- no error, just a bill."""
+    """Caching is a prefix match and this text is the prefix. A date, a uuid or an
+    interpolated id here would silently cost ~6x -- no error, just a bill.
+
+    The sha is the real assertion: it is taken over the text the runner actually sends,
+    so it moves if anything varying creeps in."""
     import datetime
+    import re
+
+    assert isinstance(P.SYSTEM_PROMPT, str)  # a constant, not a factory
     assert str(datetime.date.today().year) not in P.SYSTEM_PROMPT
-    assert P.SYSTEM_PROMPT == P.SYSTEM_PROMPT  # pure constant, not built per call
+    assert not re.search(r"\{[a-z_]+\}", P.SYSTEM_PROMPT)  # no unformatted placeholder
     assert P.system_prompt_sha256() == P.system_prompt_sha256()
 
 
@@ -1862,6 +1872,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..analysis import leakage as LK
+from ..config import DEFAULT, Config
 from ..data.windows import load_episode, load_manifest
 from .loop import MODEL
 
@@ -1971,6 +1982,7 @@ def run_probe(
     run_id: str,
     agent_id: str = "opus",
     n_reps: int = LK.DEFAULT_N_REPS,
+    cfg: Config = DEFAULT,
     usage=None,
 ) -> int:
     """Probe every (track, window). Returns the number of files written.
@@ -1995,8 +2007,9 @@ def run_probe(
 
         for track in ("real", "twin"):
             series, _spec = load_episode(windows_dir, wid, track)
+            # Tick-indexed like the agent sees them: -n_warmup..-1 warmup, 0..89 scored.
             bars = [
-                {"t": i - 200, **{k: float(v) for k, v in row.items()}}
+                {"t": i - cfg.n_warmup, **{k: float(v) for k, v in row.items()}}
                 for i, row in enumerate(
                     series[["open", "high", "low", "close", "volume"]].to_dict("records")
                 )
@@ -2093,7 +2106,9 @@ def test_a_truncated_log_does_not_count_as_a_finished_episode(windows_dir, tmp_p
     assert LN.already_done(tmp_path, "opus_nomem", "real", "w00", windows_dir) is False
 
 
-def test_a_resumed_lane_does_not_re_run_what_is_already_done(windows_dir, tmp_path):
+def test_a_resumed_lane_does_not_re_run_what_is_already_done(
+    windows_dir, tmp_path, monkeypatch
+):
     _drive_one(windows_dir, tmp_path)
     seen: list[str] = []
     real = LN.run_episode_for
@@ -2102,15 +2117,12 @@ def test_a_resumed_lane_does_not_re_run_what_is_already_done(windows_dir, tmp_pa
         seen.append(kw["window_id"])
         return real(client, **kw)
 
-    LN.run_episode_for = _spy
-    try:
-        LN.run_lane(tmp_path, _FakeClient([]), arm=LN.agent_block("opus_nomem"),
-                    track="real", windows_dir=windows_dir, run_id="t", resume=True)
-    finally:
-        LN.run_episode_for = real
+    monkeypatch.setattr(LN, "run_episode_for", _spy)
+    LN.run_lane(tmp_path, _FakeClient([]), arm=LN.agent_block("opus_nomem"),
+                track="real", windows_dir=windows_dir, run_id="t", resume=True)
 
-    assert "w00" not in seen
-    assert len(seen) == 29
+    assert "w00" not in seen          # already done, skipped
+    assert len(seen) == 29            # the other 29 ran
 
 
 def test_the_budget_guard_stops_the_lane_rather_than_burning_it():

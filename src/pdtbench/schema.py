@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "1.2.0"
+from .config import SCHEMA_VERSION  # noqa: F401 -- re-exported; one source of truth
 
 # Share counts are held — and displayed — to exactly this precision, so the log
 # always carries enough information to reproduce its own equity mark.
@@ -250,8 +250,13 @@ EPISODE_END = {
     "memory_note_in": Str(nullable=True),
     "memory_note_out": Str(nullable=True),
     "cost": Obj({
-        "tokens_in": Int(),
-        "tokens_out": Int(),
+        "tokens_in": Int(),   # uncached input only -- `usage.input_tokens`
+        "tokens_out": Int(),  # includes thinking tokens
+        # Absent for baselines, which make no API calls. Present for any agent whose
+        # prompt was cached: without them `usd` is a magic number nobody can recompute,
+        # because the three input buckets price at 1x, 0.1x and 1.25x.
+        "cache_read_tokens": Int(required=False),
+        "cache_write_tokens": Int(required=False),
         "usd": Num(required=False),
     }),
     "status": Str(enum=STATUSES),

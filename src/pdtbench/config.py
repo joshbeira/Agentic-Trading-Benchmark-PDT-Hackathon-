@@ -13,7 +13,7 @@ from pathlib import Path
 from .hashing import hash_json
 
 ENGINE_VERSION = "1.0.0"
-SCHEMA_VERSION = "1.2.0"
+SCHEMA_VERSION = "1.3.0"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"

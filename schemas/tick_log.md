@@ -1,4 +1,4 @@
-# Tick-Log Schema (JSONL) — v1.2.0
+# Tick-Log Schema (JSONL) — v1.3.0
 
 > **This document is not the contract. `src/pdtbench/schema.py` is.**
 >
@@ -48,7 +48,7 @@ exactly the precision at which they are displayed.
 ```json
 {
   "type": "meta",
-  "schema_version": "1.2.0",
+  "schema_version": "1.3.0",
   "run_id": "20260714T0930Z_a1b2c3d4",
   "episode_id": "flagship__real__w07",
   "episode_index": 6,
@@ -254,9 +254,18 @@ tick, which is what keeps replay and the scoreboard simple.
 }
 ```
 
+### `cost` fields
+
+| field | type | req | notes |
+|---|---|---|---|
+| `cost.tokens_in` | int | ✓ | `usage.input_tokens`. **The uncached remainder, not the prompt size** — the prompt is `tokens_in + cache_read_tokens + cache_write_tokens`. |
+| `cost.tokens_out` | int | ✓ | Includes thinking tokens. |
+| `cost.cache_read_tokens` | int | opt | `usage.cache_read_input_tokens`, summed over the episode. Absent for baselines. |
+| `cost.cache_write_tokens` | int | opt | `usage.cache_creation_input_tokens`, summed over the episode. Absent for baselines. |
+| `cost.usd` | num | opt | Priced at 1×, 0.1×, and 1.25× the three input buckets respectively, plus `tokens_out`. Absent for baselines, which make no API calls. |
+
 `status` ∈ **`ok` | `wallclock_capped` | `agent_error`**. `terminal.liquidation_price` is
-`null` when the agent ended flat. `cost.usd` is optional. `memory_note_in` is `null` on
-episode 0.
+`null` when the agent ended flat. `memory_note_in` is `null` on episode 0.
 
 `E_89` — the last element of `equity_series_cents` — is **net of the terminal liquidation
 friction**, so total return is fully realized and no strategy gets a free exit by holding
@@ -335,3 +344,10 @@ Cross-record:
 
 Replay (`pdtbench.engine.replay`) additionally re-prices every fill against the pinned
 `series_sha256` and recomputes the whole `metrics` block from the log alone.
+
+---
+
+## Changelog
+
+- 1.3.0 — cost gains the cache buckets, so usd is recomputable from the log; action gains
+  forced_reason.

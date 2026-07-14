@@ -240,7 +240,32 @@ def test_the_schema_version_is_stamped(make_env, tmp_path):
     log = tmp_path / "v.jsonl"
     P.run(make_env("w00", log_path=log), P.Flat()).close_log()
     meta = json.loads(log.read_text().splitlines()[0])
-    assert meta["schema_version"] == SCHEMA_VERSION == "1.2.0"
+    assert meta["schema_version"] == SCHEMA_VERSION == "1.3.0"
+
+
+def test_the_cost_block_admits_the_cache_buckets(tmp_path):
+    """With caching, `tokens_in` is only the uncached remainder. A log that cannot name
+    what it read from cache cannot regenerate its own `usd`. The schema rejects
+    undeclared fields, so these have to be declared to be writable at all."""
+    log = _mutate(_valid_log(tmp_path), lambda r: r[-1]["cost"].update({
+        "cache_read_tokens": 89_012, "cache_write_tokens": 3_456, "usd": 0.123456,
+    }))
+    rep = validate_episode(log)
+    assert rep.ok, rep.errors[:3]
+
+
+def test_a_cost_block_without_the_cache_buckets_still_validates(tmp_path):
+    """The 240 baseline logs on disk have no cache fields, and the fixture writes none.
+    This change is additive or it is a breaking one."""
+    assert validate_episode(_valid_log(tmp_path)).ok
+
+
+def test_the_schema_version_has_one_source_of_truth():
+    """It was declared in two modules. Bumping one and not the other would write 1.2.0
+    into a log while validating it against 1.3.0's rules -- silently."""
+    from pdtbench import config, schema
+    assert schema.SCHEMA_VERSION is config.SCHEMA_VERSION
+    assert config.SCHEMA_VERSION == "1.3.0"
 
 
 # =================================== the engine refuses to write an unreproducible log

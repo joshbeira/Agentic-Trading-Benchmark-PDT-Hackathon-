@@ -299,6 +299,19 @@ def _prose(text="I think I should probably wait here."):
     return _Resp([_Block("text", text=text)], stop_reason="end_turn")
 
 
+class _ExplodingClient(_FakeClient):
+    """Serves `after` completions, then raises the way the wire does."""
+
+    def __init__(self, script, after):
+        super().__init__(script)
+        self._after = after
+
+    def create(self, **kw):
+        if len(self.requests) >= self._after:
+            raise RuntimeError("the API went away mid-episode")
+        return super().create(**kw)
+
+
 def test_one_completion_is_one_call_is_one_tick(windows_dir, tmp_path):
     session = _session(windows_dir, tmp_path)
     client = _FakeClient([_tool_use("Buy", {"fraction": 1.0})])
@@ -369,6 +382,74 @@ def test_the_usage_of_a_turn_that_made_no_tool_call_is_still_billed(windows_dir,
     client = _FakeClient([_prose(), _tool_use("Wait", {"n": 10})])
     usage = L.run_episode(session, client)
     assert usage.tokens_out >= 20 * len(client.requests)
+
+
+def test_the_nudge_arrives_in_a_conversation_that_contains_the_turn_it_nudges_about(
+    windows_dir, tmp_path
+):
+    """The nudge says "You replied without making a tool call" -- so that reply has to be
+    on the wire, or the sentence refers to nothing. Dropping the assistant turn also puts
+    two `user` turns back to back, which the API silently merges rather than rejecting:
+    no error, just a nudge about a reply the model cannot see. The existing prose tests
+    cannot catch either, because the fake client ignores `messages` entirely."""
+    session = _session(windows_dir, tmp_path)
+    reply = _prose()
+    client = _FakeClient([reply, _tool_use("Wait", {"n": 1})])
+    L.run_episode(session, client)
+
+    sent = client.requests[1]["messages"]
+    roles = [m["role"] for m in sent]
+    assert all(a != b for a, b in zip(roles, roles[1:])), roles
+    # Identity, not equality -- the echo-unchanged constraint is about *these* blocks.
+    assert any(m["role"] == "assistant" and m["content"] is reply.content for m in sent), roles
+
+
+def test_the_post_force_turn_names_the_real_tick_and_keeps_the_history(windows_dir, tmp_path):
+    """R3 is "one nudge, then a forced Wait" -- not "start the episode over". Re-sending
+    `_FIRST_TURN` would tell a model at tick 6 it is at tick 0 on its first observation,
+    and wiping `messages` would throw away every prior turn."""
+    session = _session(windows_dir, tmp_path)
+    client = _FakeClient([_tool_use("Wait", {"n": 5}), _prose(), _prose()])
+    L.run_episode(session, client)
+
+    # Wait(5) took tick 0 -> 5; the forced Wait(1) took it to 6. The rolling cache
+    # breakpoint wraps the newest turn's string content, so read the text back out.
+    sent = client.requests[3]["messages"]
+    assert sent[-1]["content"][0]["text"] == L._forced_turn(6)
+    assert "tick 6 of 89" in sent[-1]["content"][0]["text"]
+    # The history stays, and _FIRST_TURN is not re-sent mid-episode.
+    assert sent[0]["content"] == L._FIRST_TURN
+    assert [m["content"] for m in sent[1:]].count(L._FIRST_TURN) == 0
+    # first_turn, assistant, tool_result, prose, nudge, prose, forced_turn.
+    assert len(sent) == 7, [m["role"] for m in sent]
+
+
+def test_a_caller_owned_usage_holds_what_a_raised_episode_spent(windows_dir, tmp_path):
+    """Task 10 seals a failed episode's log with the partial cost. Every raise out of
+    `run_episode` -- the max_calls guard, an APIStatusError off the wire -- skips the
+    return, so a usage the runner owns privately dies with the episode and the tokens
+    already billed are unrecoverable."""
+    session = _session(windows_dir, tmp_path)
+    client = _ExplodingClient([_tool_use("Wait", {"n": 1})] * 2, after=2)
+    usage = C.Usage()
+
+    with pytest.raises(RuntimeError):
+        L.run_episode(session, client, usage=usage)
+
+    assert len(client.requests) == 2  # two completions were billed before the raise
+    assert (usage.tokens_in, usage.tokens_out) == (200, 40)
+
+
+def test_a_given_usage_is_accumulated_into_and_is_the_object_returned(windows_dir, tmp_path):
+    """Accumulated into, not replaced -- the caller's handle must stay live."""
+    session = _session(windows_dir, tmp_path)
+    mine = C.Usage(tokens_out=7)
+    client = _FakeClient([])
+
+    returned = L.run_episode(session, client, usage=mine)
+
+    assert returned is mine
+    assert mine.tokens_out == 7 + 20 * len(client.requests)
 
 
 def test_thinking_blocks_are_echoed_back_unchanged(windows_dir, tmp_path):

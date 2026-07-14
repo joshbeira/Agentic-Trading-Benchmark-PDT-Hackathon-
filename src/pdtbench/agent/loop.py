@@ -38,6 +38,18 @@ _NUDGE = (
 )
 
 
+def _forced_turn(t: int) -> str:
+    """The turn after a forced Wait. Names the tick it is actually on.
+
+    Structural, not cosmetic: the prose branch has just appended an assistant turn, and
+    ending a request there is a prefill, which 4.8 rejects with a 400.
+    """
+    return (
+        f"You made no tool call, so a Wait(1) was imposed for you. You are now at tick "
+        f"{t} of 89. Make exactly one tool call."
+    )
+
+
 def _tool_use_block(resp):
     """The single tool call in a completion, or None.
 
@@ -57,13 +69,20 @@ def run_episode(
     note: str | None = None,
     model: str = MODEL,
     max_calls: int = 400,
+    usage: Usage | None = None,
 ) -> Usage:
     """Drive one episode to the terminal bar. Returns the accumulated `Usage`.
 
     `max_calls` guards the overnight batch against a model that never terminates; the
     engine's own wall-clock cap (D13) is the other backstop.
+
+    `usage`, when given, is accumulated into rather than replaced, and is the object
+    returned. Every raise out of this function -- the `max_calls` guard, or an
+    `APIStatusError`/`APITimeoutError` off the wire -- would otherwise lose every token
+    already spent; a caller that owns the accumulator still holds what a raised episode
+    spent before it died, and can seal the log with the partial cost.
     """
-    usage = Usage()
+    usage = Usage() if usage is None else usage
     system = system_blocks(note)
     messages: list[dict] = [{"role": "user", "content": _FIRST_TURN}]
     nudged = False
@@ -97,10 +116,17 @@ def run_episode(
                 # D13's prose ladder. A refusal and a max_tokens truncation land here too
                 # -- neither carries a tool call, so neither can advance the clock.
                 session.record_prose_nudge()
+                # The reply the nudge is about has to be in the conversation the nudge
+                # arrives in. Dropping it also strips its thinking blocks, which the
+                # echo-unchanged constraint forbids.
+                messages.append({"role": "assistant", "content": resp.content})
                 if nudged:
                     session.env.force_wait("prose_stall")
                     nudged = False
-                    messages = [{"role": "user", "content": _FIRST_TURN}]
+                    # A user turn here is structural: ending on the assistant turn above
+                    # would be a prefill, which 4.8 rejects with a 400. It names the tick
+                    # it is actually on -- the history stays.
+                    messages.append({"role": "user", "content": _forced_turn(session.t)})
                 else:
                     nudged = True
                     messages.append({"role": "user", "content": _NUDGE})

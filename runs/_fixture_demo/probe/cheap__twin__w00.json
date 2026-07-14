@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "cheap",
+  "track": "twin",
+  "window_id": "w00",
+  "truth": {
+    "ticker": "AAPL",
+    "period": "2008"
+  },
+  "options": {
+    "ticker": [
+      "AAPL",
+      "CSCO",
+      "JPM",
+      "NVDA",
+      "ORCL",
+      "PEP",
+      "PG",
+      "TXN"
+    ],
+    "period": [
+      "2008",
+      "2011",
+      "2016",
+      "2017",
+      "2019",
+      "2022",
+      "2023",
+      "2026"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 1298611778,
+      "answer": {
+        "ticker": "AAPL",
+        "period": "2008"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 1342986890,
+      "answer": {
+        "ticker": "AAPL",
+        "period": "2008"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 4245148312,
+      "answer": {
+        "ticker": "TXN",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 3270072834,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2016"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 2067583965,
+      "answer": {
+        "ticker": "CSCO",
+        "period": "2023"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.4,
+    "p_correct_period": 0.4,
+    "p_correct_mean": 0.4,
+    "n_reps": 5
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "cheap",
+  "track": "real",
+  "window_id": "w26",
+  "truth": {
+    "ticker": "MS",
+    "period": "2019"
+  },
+  "options": {
+    "ticker": [
+      "CVX",
+      "GS",
+      "KO",
+      "MS",
+      "MSFT",
+      "NKE",
+      "QCOM",
+      "TXN"
+    ],
+    "period": [
+      "2006",
+      "2008",
+      "2010",
+      "2011",
+      "2013",
+      "2015",
+      "2019",
+      "2020"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 2636622367,
+      "answer": {
+        "ticker": "MS",
+        "period": "2019"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 4137219302,
+      "answer": {
+        "ticker": "MS",
+        "period": "2019"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 750281867,
+      "answer": {
+        "ticker": "KO",
+        "period": "2008"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 2445867508,
+      "answer": {
+        "ticker": "NKE",
+        "period": "2006"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 3952952176,
+      "answer": {
+        "ticker": "GS",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.4,
+    "p_correct_period": 0.4,
+    "p_correct_mean": 0.4,
+    "n_reps": 5
+  }
+}

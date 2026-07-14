@@ -3,14 +3,27 @@ name = "pdtbench"
 version = "1.0.0"
 description = "An environment-authoritative agentic trading benchmark"
 requires-python = ">=3.12"
+
+# One install serves the engine, the test suite, and the demo. A separate "demo" extra
+# would mean anyone typing the obvious `pip install -e .` gets a surface that cannot
+# start, so streamlit and altair are ordinary dependencies rather than optional ones.
+#
+# Upper bounds only on the two a major bump would actually break: streamlit, whose
+# internals the demo styles, and altair, whose chart API it targets. The rest float.
+#
+# On pyarrow: streamlit's chain requires <25, and pandas wants it only as the parquet
+# engine, so the project resolves on 24.x. The suite is verified green there -- there is
+# no version of this repo where the tests and the demo need different environments.
 dependencies = [
-    "anthropic",
-    "mcp",
-    "numpy",
-    "pandas",
-    "pyarrow",
-    "scipy",
-    "yfinance",
+    "altair>=5.4,<7",
+    "anthropic>=0.40",
+    "mcp>=1.2",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyarrow>=14",
+    "scipy>=1.11",
+    "streamlit>=1.40,<2",
+    "yfinance>=0.2.40",
 ]
 
 [tool.pytest.ini_options]

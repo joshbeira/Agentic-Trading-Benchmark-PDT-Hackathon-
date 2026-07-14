@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "flagship",
+  "track": "real",
+  "window_id": "w21",
+  "truth": {
+    "ticker": "ORCL",
+    "period": "2022"
+  },
+  "options": {
+    "ticker": [
+      "AMD",
+      "BAC",
+      "CSCO",
+      "IBM",
+      "MS",
+      "ORCL",
+      "UNH",
+      "WMT"
+    ],
+    "period": [
+      "2009",
+      "2010",
+      "2011",
+      "2012",
+      "2014",
+      "2018",
+      "2022",
+      "2025"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 2201800528,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2022"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 1941064011,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2022"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 4135397225,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2022"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 2603300307,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2022"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 1778127628,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2022"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 1.0,
+    "p_correct_period": 1.0,
+    "p_correct_mean": 1.0,
+    "n_reps": 5
+  }
+}

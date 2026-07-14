@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "flagship",
+  "track": "real",
+  "window_id": "w08",
+  "truth": {
+    "ticker": "DIS",
+    "period": "2026"
+  },
+  "options": {
+    "ticker": [
+      "CAT",
+      "CSCO",
+      "DIS",
+      "GS",
+      "NKE",
+      "PEP",
+      "QCOM",
+      "WMT"
+    ],
+    "period": [
+      "2007",
+      "2009",
+      "2010",
+      "2017",
+      "2019",
+      "2021",
+      "2024",
+      "2026"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 1215914346,
+      "answer": {
+        "ticker": "DIS",
+        "period": "2026"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 2341299936,
+      "answer": {
+        "ticker": "DIS",
+        "period": "2026"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 4241784871,
+      "answer": {
+        "ticker": "DIS",
+        "period": "2026"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 2297036738,
+      "answer": {
+        "ticker": "DIS",
+        "period": "2026"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 1160165450,
+      "answer": {
+        "ticker": "GS",
+        "period": "2024"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.8,
+    "p_correct_period": 0.8,
+    "p_correct_mean": 0.8,
+    "n_reps": 5
+  }
+}

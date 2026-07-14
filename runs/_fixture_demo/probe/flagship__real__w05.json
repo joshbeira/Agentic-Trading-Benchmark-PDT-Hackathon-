@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "flagship",
+  "track": "real",
+  "window_id": "w05",
+  "truth": {
+    "ticker": "NVDA",
+    "period": "2024"
+  },
+  "options": {
+    "ticker": [
+      "BAC",
+      "HD",
+      "JPM",
+      "KO",
+      "NVDA",
+      "ORCL",
+      "WMT",
+      "XOM"
+    ],
+    "period": [
+      "2010",
+      "2011",
+      "2012",
+      "2014",
+      "2017",
+      "2018",
+      "2022",
+      "2024"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 371652575,
+      "answer": {
+        "ticker": "NVDA",
+        "period": "2024"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 669420164,
+      "answer": {
+        "ticker": "NVDA",
+        "period": "2024"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 2842456729,
+      "answer": {
+        "ticker": "NVDA",
+        "period": "2024"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 1268467693,
+      "answer": {
+        "ticker": "JPM",
+        "period": "2017"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 1770178378,
+      "answer": {
+        "ticker": "XOM",
+        "period": "2014"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.6,
+    "p_correct_period": 0.6,
+    "p_correct_mean": 0.6,
+    "n_reps": 5
+  }
+}

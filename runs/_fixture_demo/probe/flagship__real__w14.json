@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "flagship",
+  "track": "real",
+  "window_id": "w14",
+  "truth": {
+    "ticker": "HD",
+    "period": "2011"
+  },
+  "options": {
+    "ticker": [
+      "DIS",
+      "HD",
+      "IBM",
+      "NVDA",
+      "ORCL",
+      "T",
+      "TXN",
+      "XOM"
+    ],
+    "period": [
+      "2005",
+      "2007",
+      "2009",
+      "2011",
+      "2015",
+      "2016",
+      "2017",
+      "2025"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 508163979,
+      "answer": {
+        "ticker": "HD",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 2557031251,
+      "answer": {
+        "ticker": "HD",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 3375272842,
+      "answer": {
+        "ticker": "HD",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 739309520,
+      "answer": {
+        "ticker": "HD",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 2121862125,
+      "answer": {
+        "ticker": "ORCL",
+        "period": "2017"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.8,
+    "p_correct_period": 0.8,
+    "p_correct_mean": 0.8,
+    "n_reps": 5
+  }
+}

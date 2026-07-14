@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "cheap",
+  "track": "real",
+  "window_id": "w25",
+  "truth": {
+    "ticker": "GS",
+    "period": "2012"
+  },
+  "options": {
+    "ticker": [
+      "DIS",
+      "GS",
+      "MRK",
+      "NKE",
+      "NVDA",
+      "PEP",
+      "QCOM",
+      "WMT"
+    ],
+    "period": [
+      "2008",
+      "2009",
+      "2012",
+      "2013",
+      "2018",
+      "2019",
+      "2023",
+      "2024"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 1300059523,
+      "answer": {
+        "ticker": "GS",
+        "period": "2012"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 1377197827,
+      "answer": {
+        "ticker": "GS",
+        "period": "2012"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 3117208133,
+      "answer": {
+        "ticker": "PEP",
+        "period": "2008"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 403861807,
+      "answer": {
+        "ticker": "PEP",
+        "period": "2023"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 3840394449,
+      "answer": {
+        "ticker": "WMT",
+        "period": "2019"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.4,
+    "p_correct_period": 0.4,
+    "p_correct_mean": 0.4,
+    "n_reps": 5
+  }
+}

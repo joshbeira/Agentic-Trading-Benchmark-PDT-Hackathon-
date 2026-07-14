@@ -11,8 +11,22 @@ venv/
 env/
 .env
 
-# Run outputs (regenerable from logs + seeds; too big / churny for git)
-runs/
+# Run outputs.
+#
+# `runs/` was ignored as "regenerable, too churny for git" -- true while building, wrong
+# for a repo that has to be cloned and demoed. The demo reads runs/{run_id}/, so without
+# them a fresh clone starts, finds nothing, and shows an error: the one thing a judge
+# would see. The two reference runs are committed (~40 MB of JSONL, largest file 0.1 MB,
+# no LFS needed) so that `git clone` is the only setup step there is.
+#
+# They are still regenerable and neither script touches the network:
+#   python scripts/run_baselines.py     -> runs/baselines_dev   (240 real episodes)
+#   python scripts/make_fixture_run.py  -> runs/_fixture_demo   (synthetic, planted)
+#
+# Anything else a run produces stays out.
+runs/*
+!runs/baselines_dev/
+!runs/_fixture_demo/
 figures/
 
 # An empty clone of the team's GitHub repo (joshbeira/Agentic-Trading-Benchmark-...)

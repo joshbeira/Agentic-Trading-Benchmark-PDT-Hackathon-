@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "cheap",
+  "track": "twin",
+  "window_id": "w27",
+  "truth": {
+    "ticker": "UNH",
+    "period": "2026"
+  },
+  "options": {
+    "ticker": [
+      "AMD",
+      "BAC",
+      "IBM",
+      "JPM",
+      "MCD",
+      "ORCL",
+      "TXN",
+      "UNH"
+    ],
+    "period": [
+      "2006",
+      "2011",
+      "2014",
+      "2016",
+      "2017",
+      "2018",
+      "2023",
+      "2026"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 2449120042,
+      "answer": {
+        "ticker": "UNH",
+        "period": "2026"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 998716180,
+      "answer": {
+        "ticker": "UNH",
+        "period": "2026"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 1941740005,
+      "answer": {
+        "ticker": "JPM",
+        "period": "2006"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 1175242949,
+      "answer": {
+        "ticker": "JPM",
+        "period": "2014"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 748101548,
+      "answer": {
+        "ticker": "JPM",
+        "period": "2016"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.4,
+    "p_correct_period": 0.4,
+    "p_correct_mean": 0.4,
+    "n_reps": 5
+  }
+}

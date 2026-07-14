@@ -1,0 +1,266 @@
+{
+  "schema_version": "1.2.0",
+  "run_id": "_fixture_demo",
+  "created_at": "2026-07-14T09:30:00.000Z",
+  "config": {
+    "config_sha256": "fixture0000000000000000000000000000000000000000000000000000000000",
+    "initial_capital_cents": 1000000,
+    "fee_bps": 2.0,
+    "slippage_bps": 8.0,
+    "friction_bps_per_side": 10.0,
+    "fill_rule": "next_open",
+    "terminal_rule": "liquidate_at_final_close",
+    "max_wait": 10,
+    "max_reads_per_tick": 8,
+    "max_consecutive_invalid": 3,
+    "fetch_lookback_default": 50,
+    "fetch_lookback_cap": 200,
+    "episode_wallclock_cap_s": 1200,
+    "vol_floor_multiple": 0.25,
+    "trading_days_per_year": 252,
+    "n_warmup": 200,
+    "n_scored": 90
+  },
+  "dataset": {
+    "dataset_sha256": "fixture_dataset",
+    "as_of": "2026-07-14"
+  },
+  "windows_manifest_sha256": "fixture_windows",
+  "agents": [
+    {
+      "id": "flagship",
+      "kind": "llm",
+      "memory": "rolling_note",
+      "provider": "anthropic",
+      "model": "model-flagship",
+      "temperature": null,
+      "system_prompt_sha256": "prompt0000"
+    },
+    {
+      "id": "cheap",
+      "kind": "llm",
+      "memory": "rolling_note",
+      "provider": "anthropic",
+      "model": "model-cheap",
+      "temperature": null,
+      "system_prompt_sha256": "prompt0000"
+    },
+    {
+      "id": "buy_and_hold",
+      "kind": "baseline",
+      "memory": "none"
+    },
+    {
+      "id": "flat",
+      "kind": "baseline",
+      "memory": "none"
+    },
+    {
+      "id": "random_5pct",
+      "kind": "baseline",
+      "memory": "none"
+    },
+    {
+      "id": "sma_10_50",
+      "kind": "baseline",
+      "memory": "none"
+    }
+  ],
+  "tracks": [
+    "real",
+    "twin"
+  ],
+  "presentation_order": [
+    "w00",
+    "w01",
+    "w02",
+    "w03",
+    "w04",
+    "w05",
+    "w06",
+    "w07",
+    "w08",
+    "w09",
+    "w10",
+    "w11",
+    "w12",
+    "w13",
+    "w14",
+    "w15",
+    "w16",
+    "w17",
+    "w18",
+    "w19",
+    "w20",
+    "w21",
+    "w22",
+    "w23",
+    "w24",
+    "w25",
+    "w26",
+    "w27",
+    "w28",
+    "w29"
+  ],
+  "windows": [
+    {
+      "window_id": "w00",
+      "regime": "bull",
+      "bh_daily_vol": 0.025479120971119262
+    },
+    {
+      "window_id": "w01",
+      "regime": "bear",
+      "bh_daily_vol": 0.02717195839822765
+    },
+    {
+      "window_id": "w02",
+      "regime": "chop",
+      "bh_daily_vol": 0.01188354695775299
+    },
+    {
+      "window_id": "w03",
+      "regime": "bull",
+      "bh_daily_vol": 0.025222794039807057
+    },
+    {
+      "window_id": "w04",
+      "regime": "bear",
+      "bh_daily_vol": 0.012562272653510918
+    },
+    {
+      "window_id": "w05",
+      "regime": "chop",
+      "bh_daily_vol": 0.017415960484651626
+    },
+    {
+      "window_id": "w06",
+      "regime": "bull",
+      "bh_daily_vol": 0.02287730240161329
+    },
+    {
+      "window_id": "w07",
+      "regime": "bear",
+      "bh_daily_vol": 0.01886828397654662
+    },
+    {
+      "window_id": "w08",
+      "regime": "chop",
+      "bh_daily_vol": 0.021091695740316694
+    },
+    {
+      "window_id": "w09",
+      "regime": "bull",
+      "bh_daily_vol": 0.02655262343985164
+    },
+    {
+      "window_id": "w10",
+      "regime": "bear",
+      "bh_daily_vol": 0.025161754801707473
+    },
+    {
+      "window_id": "w11",
+      "regime": "chop",
+      "bh_daily_vol": 0.029413960487898065
+    },
+    {
+      "window_id": "w12",
+      "regime": "bull",
+      "bh_daily_vol": 0.025567669941475236
+    },
+    {
+      "window_id": "w13",
+      "regime": "bear",
+      "bh_daily_vol": 0.019334420074540684
+    },
+    {
+      "window_id": "w14",
+      "regime": "chop",
+      "bh_daily_vol": 0.013085789841350956
+    },
+    {
+      "window_id": "w15",
+      "regime": "bull",
+      "bh_daily_vol": 0.02489524311815634
+    },
+    {
+      "window_id": "w16",
+      "regime": "bear",
+      "bh_daily_vol": 0.01651650716276304
+    },
+    {
+      "window_id": "w17",
+      "regime": "chop",
+      "bh_daily_vol": 0.019391116225516158
+    },
+    {
+      "window_id": "w18",
+      "regime": "bull",
+      "bh_daily_vol": 0.012598430106709434
+    },
+    {
+      "window_id": "w19",
+      "regime": "bear",
+      "bh_daily_vol": 0.014538186981017682
+    },
+    {
+      "window_id": "w20",
+      "regime": "chop",
+      "bh_daily_vol": 0.018743038377446612
+    },
+    {
+      "window_id": "w21",
+      "regime": "bull",
+      "bh_daily_vol": 0.026645196027904022
+    },
+    {
+      "window_id": "w22",
+      "regime": "bear",
+      "bh_daily_vol": 0.01774956758060349
+    },
+    {
+      "window_id": "w23",
+      "regime": "chop",
+      "bh_daily_vol": 0.023649910079499507
+    },
+    {
+      "window_id": "w24",
+      "regime": "bull",
+      "bh_daily_vol": 0.013998164049502167
+    },
+    {
+      "window_id": "w25",
+      "regime": "bear",
+      "bh_daily_vol": 0.025738487550042766
+    },
+    {
+      "window_id": "w26",
+      "regime": "chop",
+      "bh_daily_vol": 0.0241033075725267
+    },
+    {
+      "window_id": "w27",
+      "regime": "bull",
+      "bh_daily_vol": 0.019178315510766798
+    },
+    {
+      "window_id": "w28",
+      "regime": "bear",
+      "bh_daily_vol": 0.01279593996255315
+    },
+    {
+      "window_id": "w29",
+      "regime": "chop",
+      "bh_daily_vol": 0.02336805923580943
+    }
+  ],
+  "probe": {
+    "n_options": 8,
+    "n_reps": 5,
+    "period_granularity": "year",
+    "chance_level": 0.125
+  },
+  "seeds": {
+    "master_seed": 20260713
+  }
+}

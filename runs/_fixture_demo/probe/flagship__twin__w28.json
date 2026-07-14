@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.1.0",
+  "run_id": "_fixture_demo",
+  "agent_id": "flagship",
+  "track": "twin",
+  "window_id": "w28",
+  "truth": {
+    "ticker": "LOW",
+    "period": "2014"
+  },
+  "options": {
+    "ticker": [
+      "AAPL",
+      "GS",
+      "HD",
+      "LOW",
+      "MRK",
+      "PEP",
+      "WMT",
+      "XOM"
+    ],
+    "period": [
+      "2005",
+      "2011",
+      "2014",
+      "2019",
+      "2020",
+      "2022",
+      "2023",
+      "2025"
+    ]
+  },
+  "n_options": 8,
+  "chance_level": 0.125,
+  "reps": [
+    {
+      "rep": 0,
+      "shuffle_seed": 2085083458,
+      "answer": {
+        "ticker": "LOW",
+        "period": "2014"
+      },
+      "correct": {
+        "ticker": true,
+        "period": true
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 1,
+      "shuffle_seed": 886641075,
+      "answer": {
+        "ticker": "XOM",
+        "period": "2023"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 2,
+      "shuffle_seed": 660576424,
+      "answer": {
+        "ticker": "WMT",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 3,
+      "shuffle_seed": 2004890813,
+      "answer": {
+        "ticker": "PEP",
+        "period": "2005"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    },
+    {
+      "rep": 4,
+      "shuffle_seed": 1462402920,
+      "answer": {
+        "ticker": "XOM",
+        "period": "2011"
+      },
+      "correct": {
+        "ticker": false,
+        "period": false
+      },
+      "raw_response": null,
+      "tokens": {}
+    }
+  ],
+  "score": {
+    "p_correct_ticker": 0.2,
+    "p_correct_period": 0.2,
+    "p_correct_mean": 0.2,
+    "n_reps": 5
+  }
+}

@@ -1470,6 +1470,8 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'pdtbench.agent.loop'`
 
 Create `src/pdtbench/agent/loop.py`:
 
+> **Amendment (owner ruling, post-Task-7 review).** The prose branch below originally appended only `_NUDGE`, never the model's own prose turn. The wire then carried two consecutive `user` turns — the API merges them rather than 400ing, so it failed silently — and the nudge referred to a reply the model could not see, while that turn's thinking blocks were dropped in violation of the echo-unchanged constraint. On the second strike it reset `messages` to `_FIRST_TURN`, re-sending "You are at tick 0 of 89. This is your first observation" mid-episode and discarding the whole conversation. Spec R3 mandates only "one nudge, then a forced Wait" — the reset and the wipe were this plan's invention, and both corrupted `reliability.n_prose_nudges` / `n_forced_waits`, which are D13 headline metrics. The assistant turn is now echoed on both strikes, and the post-force turn is built from `session.t` with the history intact. A user turn there remains structurally required: ending on the echoed assistant turn is a prefill, which 4.8 rejects.
+
 ```python
 """One episode, one model.
 
@@ -1509,6 +1511,18 @@ _NUDGE = (
     "You replied without making a tool call. Only tool calls do anything here. Make "
     "exactly one now -- Buy, Sell or Wait to act, or a read tool to look first."
 )
+
+
+def _forced_turn(t: int) -> str:
+    """The turn after a forced Wait. Names the tick it is actually on.
+
+    Structural, not cosmetic: the prose branch has just appended an assistant turn, and
+    ending a request there is a prefill, which 4.8 rejects with a 400.
+    """
+    return (
+        f"You made no tool call, so a Wait(1) was imposed for you. You are now at tick "
+        f"{t} of 89. Make exactly one tool call."
+    )
 
 
 def _tool_use_block(resp):
@@ -1574,10 +1588,17 @@ def run_episode(
                 # D13's prose ladder. A refusal and a max_tokens truncation land here too
                 # -- neither carries a tool call, so neither can advance the clock.
                 session.record_prose_nudge()
+                # The reply the nudge is about has to be in the conversation the nudge
+                # arrives in. Dropping it also strips its thinking blocks, which the
+                # echo-unchanged constraint forbids.
+                messages.append({"role": "assistant", "content": resp.content})
                 if nudged:
                     session.env.force_wait("prose_stall")
                     nudged = False
-                    messages = [{"role": "user", "content": _FIRST_TURN}]
+                    # A user turn here is structural: ending on the assistant turn above
+                    # would be a prefill, which 4.8 rejects with a 400. It names the tick
+                    # it is actually on -- the history stays.
+                    messages.append({"role": "user", "content": _forced_turn(session.t)})
                 else:
                     nudged = True
                     messages.append({"role": "user", "content": _NUDGE})

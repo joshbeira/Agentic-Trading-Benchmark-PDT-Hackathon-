@@ -68,3 +68,54 @@ def test_an_unknown_model_is_refused_rather_than_priced_at_zero():
     """A silent 0.0 would look like a free run."""
     with pytest.raises(KeyError):
         C.Usage(tokens_in=1).usd("claude-not-a-model")
+
+
+from pdtbench.agent import prompt as P
+
+
+def test_the_prompt_discloses_everything_d13_says_it_must():
+    """Hiding the metric would test goal inference -- a different experiment."""
+    text = P.SYSTEM_PROMPT
+    for required in (
+        "vol-floored Sharpe",     # the ranking metric (D2)
+        "10 bps",                 # the fee schedule (D10)
+        "open of the next bar",   # the fill rule (D3)
+        "$10,000",                # initial capital (D13)
+        "90",                     # the episode length
+    ):
+        assert required.lower() in text.lower(), required
+
+
+def test_the_prompt_carries_no_invalidator():
+    """Caching is a prefix match and this text is the prefix. A date, a uuid or an
+    interpolated id here would silently cost ~6x -- no error, just a bill.
+
+    The sha is the real assertion: it is taken over the text the runner actually sends,
+    so it moves if anything varying creeps in."""
+    import datetime
+    import re
+
+    assert isinstance(P.SYSTEM_PROMPT, str)  # a constant, not a factory
+    assert str(datetime.date.today().year) not in P.SYSTEM_PROMPT
+    assert not re.search(r"\{[a-z_]+\}", P.SYSTEM_PROMPT)  # no unformatted placeholder
+    assert P.system_prompt_sha256() == P.system_prompt_sha256()
+
+
+def test_the_memory_arms_share_a_byte_identical_frozen_block():
+    """D13. The note must sit in its own block *after* the frozen one, or the two arms
+    are not running the same experiment."""
+    with_note = P.system_blocks("remember: w13 was choppy")
+    without = P.system_blocks(None)
+
+    assert without == [with_note[0]]
+    assert len(with_note) == 2
+    assert with_note[0]["text"] == P.SYSTEM_PROMPT
+    assert with_note[0]["cache_control"] == {"type": "ephemeral"}
+    assert "w13 was choppy" in with_note[1]["text"]
+    assert "cache_control" not in with_note[1]
+
+
+def test_an_empty_note_is_not_a_block():
+    """Episode 0 of a memory lane has no incoming note; it must look exactly like the
+    no-memory arm, not like an arm carrying an empty note."""
+    assert P.system_blocks("") == P.system_blocks(None)

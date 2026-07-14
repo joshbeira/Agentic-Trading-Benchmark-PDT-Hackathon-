@@ -1279,8 +1279,11 @@ git commit -m "agent: the model's tools are generated from the engine's surface"
 - Consumes: `agent.cost.Usage`, `agent.prompt.system_blocks`, `agent.tools.ServedSurface`/`TOOL_CHOICE`, `EpisodeSession`.
 - Produces:
   - `MODEL = "claude-opus-4-8"`, `MAX_TOKENS = 16384`, `THINKING = {"type": "adaptive"}`, `EFFORT = {"effort": "low"}`
-  - `def run_episode(session, client, *, note=None, model=MODEL, max_calls=400) -> Usage`
+  - `def run_episode(session, client, *, note=None, model=MODEL, max_calls=400, usage=None) -> Usage`
     Drives one episode to the terminal bar and returns the accumulated `Usage`. Does **not** call `session.finish()` — the caller owns memory and cost.
+    `usage`, when given, is accumulated into and returned instead of a fresh one — the tokens a raise leaves behind are the caller's only record of what a failed episode cost. Matches `write_note`, `make_probe_fn`, `run_probe`, and `run_lane`, which all take the same accumulator.
+
+> **Amendment (owner ruling, post-Task-7 review).** This line originally read `def run_episode(session, client, *, note=None, model=MODEL, max_calls=400) -> Usage`, with the loop constructing its own accumulator. Task 7's review flagged it: `run_episode` spends more than any other call in the plan (90 ticks) and was the only money-spending API here that did not take a caller-owned `usage`. On a mid-episode exception the accumulated tokens died with the stack frame, so Task 10's `session.finish(cost=..., status="agent_error")` seal would understate the episode and the budget kill switch would under-count. The parameter is optional and defaults to the old behaviour, so Task 7's tests are unaffected.
 
 **Fake client contract (used by every test below):** an object with `.messages.create(**kwargs) -> resp`, where `resp` has `.content` (a list of blocks with `.type`, and for `type == "tool_use"` also `.name`, `.input`, `.id`), `.stop_reason`, and `.usage`.
 
@@ -1527,13 +1530,17 @@ def run_episode(
     note: str | None = None,
     model: str = MODEL,
     max_calls: int = 400,
+    usage: Usage | None = None,
 ) -> Usage:
     """Drive one episode to the terminal bar. Returns the accumulated `Usage`.
 
     `max_calls` guards the overnight batch against a model that never terminates; the
     engine's own wall-clock cap (D13) is the other backstop.
+
+    `usage`, when given, is accumulated into rather than replaced -- a caller that owns
+    the accumulator still holds what a raised episode spent before it died.
     """
-    usage = Usage()
+    usage = Usage() if usage is None else usage
     system = system_blocks(note)
     messages: list[dict] = [{"role": "user", "content": _FIRST_TURN}]
     nudged = False

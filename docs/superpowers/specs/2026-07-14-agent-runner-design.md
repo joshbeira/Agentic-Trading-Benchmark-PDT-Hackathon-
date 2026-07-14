@@ -175,15 +175,25 @@ Breakpoint 2 carries the run. It covers system + tools + history, which crosses 
 
 ### R7. The probe (D9)
 
-Separate from the trading loop: no memory note, no tools. Per (track, window): an 8-way ticker question and an 8-way period question, 5 reps each — 60 windows × 2 × 5 = **600 calls**.
+Separate from the trading loop: no memory note, no tools. One `Question` carries **both** axes — an 8-way ticker choice and an 8-way period choice answered in a single call — so the cost is 30 windows × 2 tracks × 5 reps = **300 calls**, not 600.
 
-**The 5 reps do not work as D9 specifies them.** Opus 4.8 has no `temperature`, so five reps of a byte-identical prompt are five draws from a near-deterministic function: per-window identifiability collapses to {0, 1} instead of the {0, .2, .4, .6, .8, 1} the analysis expects (`make_fixture_run.py` notes identifiability is "quantized to 1/n_reps", and the recovered leak slope already sits under the planted one because of that quantization).
+**Almost all of this is already built.** `analysis/leakage.py` shipped with step 6 and already implements the whole harness behind a pluggable `ProbeFn` adapter — deliberately, so the analysis could be validated against a stub whose accuracy we control:
 
-**Fix: shuffle the option order per rep**, seeded from `master_seed`. This restores genuine variation, stays reproducible, and defeats position bias — the first thing this audience would ask about an 8-way multiple-choice probe.
+| already exists | behaviour |
+|---|---|
+| `build_options(window_id, truth, ticker_pool, period_pool, n_options)` | Seeded off `window_id` **alone, never the track** — a window's real series and its twin must be offered an identical option set, or `p_real − p_twin` measures our distractors instead of the model's memory. |
+| `build_questions(window_id, track, truth, options, n_reps)` | **Already shuffles option order per rep**, seeded from `_seed(window_id, track, rep)`. Its docstring: "a model with a position bias ('always pick the third option') would post a stable non-chance accuracy and we would read it as recall." |
+| `ask(q, bars, probe_fn)` | Runs one question. An unparseable or out-of-set answer scores wrong and is *recorded* — never dropped, because dropping failures inflates accuracy. |
+| `score()`, `write_probe_file()` | Scoring and the on-disk artifact. |
 
-- Answer schema is a **constant `A`–`H` enum** via `output_config.format`, with the option→answer mapping rotating underneath. A constant schema keeps structured-output schema compilation cached; a rotating enum would recompile every rep.
-- Bars go **first, behind a cache breakpoint** (~9.5K tokens for 290 bars — comfortably over the 4096 minimum), shuffled options after it. Each window's bars are written once and read 9 times.
-- Distractors are 7 wrong tickers drawn from the real universe and 7 wrong years, seeded from `master_seed`. Plausible distractors, not straw men.
+The concern that motivated a fix here is real — Opus 4.8 has no `temperature`, so five reps of a byte-identical prompt would be five draws from a near-deterministic function and per-window identifiability would collapse to {0, 1}. **But the shuffling that prevents it predates this spec**, and `leakage.py` already documents the residual quantization honestly: it is measurement error in the regressor, which biases the OLS slope *toward zero*, making the headline a conservative estimate rather than an inflated one.
+
+**So step 5 builds only the adapter and the driver**, not the harness:
+
+- `agent/probe.py` implements `ProbeFn`: `(bars, options, context) -> {"ticker": ..., "period": ..., "raw": ..., "tokens": {...}}`. The returned values must be members of `options[axis]`; `ask()` scores anything else as wrong.
+- Answer schema is a **constant `A`–`H` enum** via `output_config.format`, with the shuffled option→letter mapping rotating underneath and the adapter mapping back. A constant schema keeps structured-output compilation cached; putting the shuffled ticker strings in the enum would recompile it every rep.
+- Bars go **first, behind a cache breakpoint** (~9.5K tokens for all 290 presented bars — comfortably over the 4096 minimum), options after it. Each (window, track)'s bars are written once and read 4 times across its 5 reps.
+- Pools: `ticker_pool` is every ticker in `data/processed/prices.parquet` (the full fetched universe, not just the 30 selected — distractors drawn only from selected windows would leak the selection); `period_pool` is the years spanned by the dataset. `truth = {"ticker": real_spec["ticker"], "period": real_spec["date_scored_start"][:4]}`, built from the **real** window's manifest entry and used for both tracks.
 - **Probing a twin asks the same question with the source window's ticker as the "correct" answer.** That is how the twin arm calibrates the false-positive rate (D9): a model that "identifies" a synthetic path is pattern-matching, not recalling.
 - Single identity, no memory note. Identifiability is a property of the weights, not of an arm, and both arms are the same Opus 4.8. Probing per arm would pay double to measure the same quantity twice. A note reading "w13 looked like the COVID crash in NVDA" would contaminate the probe and make D9 measure what the agent *wrote down* rather than what the model *recalls*.
 - Both arms' Sharpe edge then plots against one shared identifiability x-axis — and the pair answers a bonus question: **does memory make the model exploit identifiability more?**
@@ -216,7 +226,8 @@ src/pdtbench/agent/
   loop.py      one episode: the decision loop, the prose ladder, attribution
   memory.py    the rolling note: reflection call, ≤500 tokens, per-lane state
   cost.py      usage → USD; the price table; the budget guard
-  probe.py     D9's 8-way probe: seeded shuffling, structured output
+  probe.py     the ProbeFn adapter + the driver loop over windows and pools;
+               the harness itself already lives in analysis/leakage.py
   lanes.py     4 lanes (arm × track); sequential within, parallel across; resume
 scripts/run_agents.py    --dry-run | --lanes | --probe | --resume
 ```
@@ -236,7 +247,7 @@ Touched elsewhere: `engine/env.py` (`force_wait`), `mcp/session.py` (`attributin
 - `opus_mem`'s system is byte-identical to `opus_nomem`'s but for the appended note block (D13).
 - Cost: a `usage` carrying all four buckets produces a USD figure equal to a hand-computed one, and is recomputable from the logged counts.
 - The note is ≤500 tokens; an over-long note triggers one re-ask, then truncation.
-- Probe option shuffling is reproducible from `master_seed`; the answer enum is constant across reps.
+- The probe adapter returns members of `options[axis]` (anything else is scored wrong by `ask()`, which is already tested); the `A`–`H` answer enum is constant across reps while the option→letter mapping rotates.
 - The budget guard trips.
 - **An episode driven entirely by the fake client still passes `validate_episode` and `replay`** — the runner cannot produce a log the rest of the pipeline rejects.
 

@@ -94,7 +94,13 @@ def test_the_prompt_does_not_lie_about_the_environment():
     assert ("at most 8" in P.SYSTEM_PROMPT) == (D.max_reads_per_tick == 8)
     assert ("Three consecutive" in P.SYSTEM_PROMPT) == (D.max_consecutive_invalid == 3)
     assert ("up to 10 bars" in P.SYSTEM_PROMPT) == (D.max_wait == 10)
-    assert ("200 further bars" in P.SYSTEM_PROMPT) == (D.fetch_lookback_cap == 200)
+    assert ("ticks 0 through 89" in P.SYSTEM_PROMPT) == (D.n_scored == 90)
+    # Two separate claims sit in one sentence, and they answer to two different fields.
+    # "200 further bars ... precede tick 0" is the warmup the agent can see; "a 200-bar
+    # lookback is honorable immediately" is what fetchData will actually serve. Binding
+    # both to fetch_lookback_cap would let n_warmup drift while the guard stayed green.
+    assert ("200 further bars" in P.SYSTEM_PROMPT) == (D.n_warmup == 200)
+    assert ("200-bar lookback" in P.SYSTEM_PROMPT) == (D.fetch_lookback_cap >= 200)
     assert ("0.25 * bh_daily_vol" in P.SYSTEM_PROMPT) == (D.vol_floor_multiple == 0.25)
 
 

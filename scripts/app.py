@@ -18,7 +18,7 @@ from the JSONL rather than trusting the cached blocks -- so a figure here and a 
 shown: ten episodes per regime cell is a small sample and the UI should say so rather
 than round it away.
 
-The headline tab leads with D9's figure -- per-window Sharpe edge against per-window
+The headline tab leads with D9's claim -- per-window Sharpe edge against per-window
 identifiability -- because that is the claim the benchmark exists to make. Edge
 concentrated in the windows the model can name is exploited memorization; edge flat
 across identifiability is generalization.
@@ -31,9 +31,31 @@ the replay fallback if the network is not.
 The read is a tearsheet, not a dashboard: this is operated by people who read numbers for
 a living, and the job is to make a result legible enough to be trusted or attacked. So
 every figure is monospaced and tabular-aligned, tables are static rather than sortable
-widgets (a tearsheet is printed, not queried), and colour is never decoration -- it means
-regime, or it means a verdict. Charts are Altair, which ships inside streamlit: no CDN, so
-the surface still renders with the venue wifi down.
+widgets (a tearsheet is printed, not queried), and colour is never decoration.
+
+The surface is a *two-plate proof*. Every real window in this benchmark has a twin, and
+the twin is matched until only the identity differs; two impressions that should register
+perfectly, where the fringe between them is the entire finding. So the page prints in one
+ink (INK) at three screen densities, and there is exactly one chromatic ink (PROCESS) on
+it. PROCESS appears nowhere except where two things that should agree do not: a Sharpe
+edge over the twin, a cached metric that disagrees with the replay, a malformed call, a
+slope that clears zero. **A clean run prints in black and white.**
+
+Two rules follow from that, and both are load-bearing:
+
+*Hue is not valence.* There is no green and no red. In this benchmark green-is-good is
+false -- a large edge concentrated in the windows a model can name is the *incriminating*
+result, the thing the twin was built to catch, and painting it green would be a lie told
+in colour. Magenta means "look here", never "this is good". Sign is carried by the
+`+`/`-` glyph, which cannot be misread.
+
+*Type is epistemology.* A sentence set in the serif is a claim -- something a reader can
+argue with. A figure set in the mono is evidence -- a number recomputed from the tick log.
+The split holds inside a sentence: the figures inside a verdict are mono, so an assertion
+and a measurement are never the same substance.
+
+Charts are Altair, which ships inside streamlit, and both faces are vendored under
+`static/`: no CDN anywhere, so the surface still renders with the venue wifi down.
 """
 
 from __future__ import annotations
@@ -56,26 +78,38 @@ RUNS_DIR = REPO / "runs"
 TRACKS = ("real", "twin")
 
 # --- tokens (mirrored in .streamlit/config.toml) ------------------------------------
-PAPER = "#F5F6F8"
-PANEL = "#FFFFFF"
-INK = "#0E1419"
-INK_2 = "#5A6672"
-INK_3 = "#8A96A1"
-RULE = "#DDE2E7"
-ACCENT = "#17457A"
+# One ink, three densities, and one chromatic ink that means the plates missed.
+PROOF = "#EDEFEA"     # the paper
+PLATE = "#FBFCF9"     # the specimen field: chart and panel grounds
+INK = "#14181B"       # the record: all type, the real series, bull.        100% screen
+GRAPHITE = "#69737C"  # the control: the twin, intervals, secondary type, bear.  ~55%
+SCREEN = "#929593"    # tertiary: chop, disabled figures.                         ~42%
+RULE = "#D5DAD2"      # hairlines, gridlines, table borders
+PROCESS = "#C81E65"   # THE GAP. The only chromatic ink on the page.
 
-BULL = "#1F6F54"
-BEAR = "#9E3B33"
-CHOP = "#6B7684"
+# GRAPHITE clears 4.5:1 on PROOF; the #8A96A1 it replaces did not, and this is projected.
+# SCREEN is under that floor and is therefore never used for type -- only for a mark
+# whose meaning is already carried by its shape.
 
-POS = "#106B4A"
-NEG = "#9E2B25"
-WARN = "#8A6212"
+SERIF_FACE = "Spectral"
+MONO_FACE = "IBM Plex Mono"
+SERIF = f"'{SERIF_FACE}', Georgia, 'Times New Roman', serif"
+MONO = f"'{MONO_FACE}', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
-SANS = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-MONO = "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
+#: Every rule that asks for a face must outrank the inheritance reset below, which is an
+#: attribute plus an element and therefore beats a bare class. Prefixing with the app
+#: container makes the specificity (0,2,1) against its (0,1,1) and the rule lands. This
+#: is not decoration: without it `.reg-v` and `.lbl` silently render in the serif, and
+#: the split between a claim and a measurement -- the whole point of the pairing -- dies
+#: quietly, on a page that still looks fine.
+APP = '[data-testid="stAppViewContainer"]'
 
-st.set_page_config(page_title="pdtbench", layout="wide", initial_sidebar_state="expanded")
+# `auto`, not `expanded`: streamlit reads the viewport and only forces the panel open on
+# a wide one. Pinned `expanded`, the instrument panel is 100% of a 375px screen and 40%
+# of a tablet -- the run report becomes a strip behind a control it did not need to show,
+# and on the phone the report is not reachable at all. On the projector this is still
+# expanded, which is the case that matters.
+st.set_page_config(page_title="pdtbench", layout="wide", initial_sidebar_state="auto")
 
 
 # --------------------------------------------------------------------------- chrome
@@ -88,7 +122,7 @@ st.markdown(
         display: none !important;
       }}
 
-      [data-testid="stAppViewContainer"] {{ background: {PAPER}; }}
+      [data-testid="stAppViewContainer"] {{ background: {PROOF}; }}
       [data-testid="stMainBlockContainer"] {{
         padding: 2.2rem 2.6rem 5rem;
         max-width: 1320px;
@@ -98,7 +132,7 @@ st.markdown(
          in an icon font -- overriding their family renders the icon's *name* as text
          ("keyboard_arrow_right" appearing next to an expander). Anything that needs a
          different face below asks for it by name. */
-      html, body {{ font-family: {SANS}; }}
+      html, body {{ font-family: {SERIF}; }}
       [data-testid="stAppViewContainer"] p,
       [data-testid="stAppViewContainer"] label,
       [data-testid="stAppViewContainer"] span,
@@ -118,158 +152,201 @@ st.markdown(
         gap: 1.5rem;
         flex-wrap: wrap;
       }}
-      .sheet-title {{
-        font-size: 1.5rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
+      {APP} .sheet-title {{
+        font-family: {SERIF};
+        font-size: 2rem;
+        font-weight: 600;
+        letter-spacing: -0.015em;
         color: {INK};
-        line-height: 1.1;
+        line-height: 1.05;
       }}
-      .sheet-title small {{
+      {APP} .sheet-title small {{
         display: block;
         font-family: {MONO};
-        font-size: 0.66rem;
-        font-weight: 500;
-        letter-spacing: 0.14em;
+        font-size: 0.64rem;
+        font-weight: 400;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: {INK_3};
-        margin-bottom: 0.3rem;
+        color: {GRAPHITE};
+        margin-bottom: 0.42rem;
       }}
-      .sheet-facts {{
+      {APP} .sheet-facts {{
         font-family: {MONO};
-        font-size: 0.72rem;
-        letter-spacing: 0.04em;
-        color: {INK_2};
+        font-size: 0.7rem;
+        letter-spacing: 0.03em;
+        color: {GRAPHITE};
         text-align: right;
+        /* Holds the facts against the right edge once the band wraps. `space-between`
+           stops distributing the moment the two children are on separate lines, and a
+           shrink-to-fit box has nothing for `text-align` to push against -- so the run
+           id drifts into the middle of the page and reads as a caption for the title. */
+        margin-left: auto;
         font-variant-numeric: tabular-nums;
         line-height: 1.7;
       }}
       .sheet-facts b {{ color: {INK}; font-weight: 600; }}
 
-      /* --- the verdict: the app says the answer in words --- */
+      /* --- the verdict: the app says the answer in words ---
+         The question is mono (it is the instrument asking); the answer is serif (it is a
+         claim). Figures inside the answer stay mono, so an assertion and a measurement
+         never read as the same substance. */
       .verdict {{
-        border-left: 3px solid {ACCENT};
-        padding: 0.15rem 0 0.15rem 1rem;
-        margin: 0.2rem 0 1.4rem;
+        border-left: 2px solid {INK};
+        padding: 0.1rem 0 0.1rem 1.05rem;
+        margin: 0.2rem 0 1.5rem;
       }}
-      .verdict .q {{
+      {APP} .verdict .q {{
         font-family: {MONO};
-        font-size: 0.66rem;
+        font-size: 0.64rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: {INK_3};
-        margin-bottom: 0.35rem;
+        color: {GRAPHITE};
+        margin-bottom: 0.4rem;
       }}
-      .verdict .a {{
-        font-size: 1.16rem;
-        line-height: 1.45;
+      {APP} .verdict .a {{
+        font-family: {SERIF};
+        font-size: 1.24rem;
+        line-height: 1.5;
         color: {INK};
         max-width: 62ch;
       }}
-      .verdict .a b {{
+      {APP} .verdict .a b {{
         font-family: {MONO};
-        font-weight: 700;
+        font-size: 0.92em;
+        font-weight: 600;
         font-variant-numeric: tabular-nums;
-        color: {ACCENT};
+        color: {INK};
       }}
-      .verdict .a em {{ color: {INK_2}; font-style: normal; }}
+      .verdict .a em {{ color: {GRAPHITE}; font-style: italic; }}
 
       /* --- section labels --- */
-      .lbl {{
+      {APP} .lbl {{
         font-family: {MONO};
-        font-size: 0.66rem;
+        font-size: 0.64rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: {INK_3};
+        color: {GRAPHITE};
         border-bottom: 1px solid {RULE};
         padding-bottom: 0.4rem;
         margin: 0.5rem 0 0.9rem;
       }}
-      .note {{ font-size: 0.85rem; color: {INK_2}; line-height: 1.55; max-width: 78ch; }}
-      .note code {{
+      {APP} .note {{
+        font-family: {SERIF};
+        font-size: 0.9rem;
+        color: {GRAPHITE};
+        line-height: 1.6;
+        max-width: 78ch;
+      }}
+      .note b {{ color: {INK}; font-weight: 600; }}
+      {APP} .note code {{
         font-family: {MONO};
-        font-size: 0.8em;
+        font-size: 0.78em;
         background: {RULE};
-        padding: 0.06em 0.3em;
-        border-radius: 2px;
+        border-radius: 0;
+        padding: 0.08em 0.32em;
         color: {INK};
       }}
 
-      /* --- tabs: a rule with an active mark, not a pill row --- */
-      [data-testid="stTabs"] [data-baseweb="tab-list"] {{
+      /* --- the contact sheet's key --- */
+      {APP} .key {{
+        display: flex;
+        gap: 1.4rem;
+        font-family: {MONO};
+        font-size: 0.6rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: {GRAPHITE};
+        margin: -0.3rem 0 0.7rem;
+      }}
+      .key span {{ display: inline-flex; align-items: center; gap: 0.42rem; }}
+      .key i {{ width: 15px; height: 0; display: inline-block; }}
+      .key .k-real {{ border-top: 1.5px solid {INK}; }}
+      .key .k-twin {{ border-top: 1.5px dashed {GRAPHITE}; }}
+      .key .k-gap {{ height: 8px; background: {PROCESS}; opacity: 0.85; }}
+
+      /* --- tabs: a rule with an active mark, not a pill row ---
+         Streamlit 1.59 renders tabs through react-aria: the baseweb hooks this used to
+         target do not exist, and styling them was styling nothing. `stTab` is the
+         testid, the label is a <p> inside a markdown container, and the moving underline
+         is react-aria's own SelectionIndicator. */
+      [data-testid="stTabs"] [role="tablist"] {{
         gap: 1.6rem;
         border-bottom: 1px solid {RULE};
       }}
-      [data-testid="stTabs"] [data-baseweb="tab"] {{
+      {APP} [data-testid="stTab"] p {{
         font-family: {MONO};
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         letter-spacing: 0.12em;
         text-transform: uppercase;
-        font-weight: 600;
-        color: {INK_3};
-        padding: 0.35rem 0 0.6rem;
+        font-weight: 400;
+        color: {GRAPHITE};
       }}
-      [data-testid="stTabs"] [aria-selected="true"] {{ color: {INK}; }}
-      [data-testid="stTabs"] [data-baseweb="tab-highlight"] {{ background: {ACCENT}; height: 2px; }}
-      [data-testid="stTabs"] [data-baseweb="tab-border"] {{ display: none; }}
+      [data-testid="stTab"] {{ padding: 0.35rem 0 0.6rem; }}
+      {APP} [data-testid="stTab"][aria-selected="true"] p {{ color: {INK}; font-weight: 600; }}
+      .react-aria-SelectionIndicator {{ background: {INK} !important; height: 2px !important; }}
 
-      /* --- figures: the point estimate leads, the interval stays subordinate --- */
-      .stats {{
+      /* --- the register: figures ruled onto the paper, not cards floated above it ---
+         No fill, no radius, no shadow, no vertical rules. Two horizontal rules hold the
+         row; the label/value/qualifier hierarchy separates the cells on its own. */
+      .reg {{
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1px;
-        background: {RULE};
-        border: 1px solid {RULE};
-        border-radius: 3px;
-        overflow: hidden;
-        margin-bottom: 1.1rem;
+        grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+        gap: 0.9rem 2.2rem;
+        border-top: 2px solid {INK};
+        border-bottom: 1px solid {RULE};
+        padding: 0.75rem 0 0.85rem;
+        margin: 0.2rem 0 1.4rem;
       }}
-      .stat {{ background: {PANEL}; padding: 0.7rem 0.95rem 0.75rem; }}
       /* The label wraps rather than truncating: on a narrow window an ellipsis turns
-         "sharpe edge (real − twin)" into "sharpe edge (real − tw…", which is a headline
+         "sharpe edge (real - twin)" into "sharpe edge (real - tw...", which is a headline
          figure whose name the reader cannot finish. min-height reserves the second line
          so the values stay on one baseline across the row whether they wrap or not. */
-      .stat-l {{
+      {APP} .reg-l {{
         font-family: {MONO};
-        font-size: 0.6rem;
-        line-height: 1.45;
+        font-size: 0.58rem;
+        line-height: 1.5;
         min-height: 2.9em;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.11em;
         text-transform: uppercase;
-        color: {INK_3};
+        color: {GRAPHITE};
         text-wrap: balance;
       }}
-      .stat-v {{
+      {APP} .reg-v {{
         font-family: {MONO};
-        font-size: 1.42rem;
+        font-size: 1.5rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
         color: {INK};
-        line-height: 1.35;
-        letter-spacing: -0.02em;
+        line-height: 1.3;
+        letter-spacing: -0.03em;
       }}
-      .stat-s {{
+      {APP} .reg-s {{
         font-family: {MONO};
-        font-size: 0.68rem;
+        font-size: 0.66rem;
         font-variant-numeric: tabular-nums;
-        color: {INK_3};
+        color: {GRAPHITE};
         white-space: nowrap;
       }}
-      .stat-v .pos {{ color: {POS}; }}
-      .stat-v .neg {{ color: {NEG}; }}
-      .stat-v .zero {{ color: {INK_3}; }}
+
+      /* The one chromatic ink, and the only rule that grants it. */
+      .gap {{ color: {PROCESS}; }}
+      .flat {{ color: {GRAPHITE}; }}
 
       /* --- tables: printed, not queried ---
          These are hand-rolled HTML, not st.table. Streamlit's table is a canvas-ish
          widget whose internals shift between versions, and styling it through
          data-testid hooks silently hid a real column header (the diff between the
          header row and the body row was one cell, so every label sat over the wrong
-         number). Owning the markup makes that class of bug impossible. */
+         number). Owning the markup makes that class of bug impossible.
+
+         There is no row hover. This is a printed record; paper does not light up when
+         you point at it, and the highlight was only ever telling the reader that the
+         surface had noticed the mouse. */
       .tt-wrap {{ overflow-x: auto; margin-bottom: 0.5rem; }}
       table.tt {{
         border-collapse: collapse;
         width: 100%;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         font-family: {MONO};
         font-variant-numeric: tabular-nums;
       }}
@@ -278,11 +355,11 @@ st.markdown(
          beats an inherited value however specific the ancestor rule is. */
       table.tt th {{
         font-family: {MONO};
-        font-size: 0.62rem;
+        font-size: 0.6rem;
         letter-spacing: 0.09em;
         text-transform: uppercase;
-        font-weight: 600;
-        color: {INK_3};
+        font-weight: 400;
+        color: {GRAPHITE};
         border: none;
         border-bottom: 1px solid {INK};
         padding: 0 0.85rem 0.4rem 0;
@@ -300,29 +377,40 @@ st.markdown(
         text-align: right;
         white-space: nowrap;
       }}
-      table.tt tbody tr:hover td {{ background: rgba(23, 69, 122, 0.05); }}
       table.tt td.name {{ font-weight: 600; letter-spacing: -0.01em; }}
-      table.tt td.kind {{ color: {INK_3}; font-size: 0.72rem; }}
-      table.tt .ci {{ color: {INK_3}; font-size: 0.72rem; margin-left: 0.35rem; }}
-      table.tt .pos {{ color: {POS}; }}
-      table.tt .neg {{ color: {NEG}; }}
-      table.tt .zero {{ color: {INK_3}; }}
-      table.tt tr.lead td {{ background: rgba(23, 69, 122, 0.05); }}
+      table.tt td.kind {{ color: {GRAPHITE}; font-size: 0.7rem; }}
+      table.tt .ci {{ color: {GRAPHITE}; font-size: 0.7rem; margin-left: 0.35rem; }}
+      table.tt .gap {{ color: {PROCESS}; }}
+      table.tt .flat {{ color: {GRAPHITE}; }}
+      /* The ranked row is marked with a screen of the ink, not a tint of some other
+         hue -- the page has only one ink to shade with. */
+      table.tt tr.lead td {{ background: rgba(20, 24, 27, 0.05); }}
+
+      /* --- the contact sheet ---
+         30 cells wide by design. It does not reflow: a contact sheet that rewraps is a
+         different sheet, and the comparison between neighbours is the whole point. On a
+         narrow screen it scrolls, which is what you do with the paper original. */
+      .st-key-contact_sheet {{ overflow-x: auto; overflow-y: hidden; }}
+      .st-key-contact_sheet [data-testid="stVegaLiteChart"] {{ min-width: 940px; }}
 
       /* --- sidebar: an instrument panel --- */
-      [data-testid="stSidebar"] {{ background: {PANEL}; border-right: 1px solid {RULE}; }}
-      [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {{
-        font-family: {MONO};
-        font-size: 0.63rem;
-        letter-spacing: 0.11em;
-        text-transform: uppercase;
-        color: {INK_3};
+      [data-testid="stSidebar"] {{
+        background: {PLATE};
+        border-right: 1px solid {RULE};
+        box-shadow: none !important;
       }}
-      .side-note {{
+      {APP} [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {{
         font-family: {MONO};
-        font-size: 0.68rem;
-        line-height: 1.75;
-        color: {INK_2};
+        font-size: 0.61rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: {GRAPHITE};
+      }}
+      {APP} .side-note {{
+        font-family: {MONO};
+        font-size: 0.66rem;
+        line-height: 1.8;
+        color: {GRAPHITE};
         font-variant-numeric: tabular-nums;
         border-top: 1px solid {RULE};
         padding-top: 0.7rem;
@@ -330,17 +418,111 @@ st.markdown(
       }}
       .side-note b {{ color: {INK}; font-weight: 600; }}
 
-      /* --- alerts: quieter than the default --- */
-      [data-testid="stAlert"] {{ border-radius: 3px; font-size: 0.85rem; }}
+      /* --- alerts: quieter than the default. A disagreement between the log and its
+         own cache is a registration failure, so it is the one alert that gets the ink. */
+      [data-testid="stAlert"] {{
+        border-radius: 0;
+        font-size: 0.86rem;
+        background: {PLATE};
+        border: 1px solid {RULE};
+        border-left: 2px solid {GRAPHITE};
+        color: {INK};
+      }}
+      [data-testid="stAlertContentError"] {{ border-left-color: {PROCESS}; }}
 
-      [data-testid="stExpander"] summary p {{
+      {APP} [data-testid="stExpander"] summary p {{
         font-family: {MONO};
-        font-size: 0.68rem;
+        font-size: 0.66rem;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: {INK_2};
+        color: {GRAPHITE};
       }}
-      [data-testid="stDataFrame"] {{ border: 1px solid {RULE}; border-radius: 3px; }}
+      [data-testid="stExpander"] details {{ border-color: {RULE}; }}
+      [data-testid="stDataFrame"] {{ border: 1px solid {RULE}; }}
+
+      /* --- the framework's own chrome ---
+         Streamlit ships a rounded, shadowed, animated widget kit. None of it is wrong;
+         all of it belongs to a different page. These are the stable testids -- the
+         emotion hashes beside them change between releases, so anything hung on those
+         is styled by luck.
+
+         The corner radius goes to zero everywhere. A printed sheet has no rounded
+         corners, and 8px on a select box beside a 0px table is the tell that a theme
+         was painted over a kit rather than drawn. */
+      /* `*`, not a named child: the box that actually carries the radius is an emotion
+         div with no stable hook of its own, so naming it would be naming a hash. The
+         radio's dot is the one round thing that stays round -- it is a dot. */
+      [data-testid="stSelectbox"] *,
+      [data-testid="stNumberInput"] *,
+      [data-testid="stNumberInputContainer"],
+      [data-testid="stStatusWidget"],
+      [data-testid="stSkeleton"],
+      [data-testid="stExpander"] details,
+      [data-testid="stExpander"] summary,
+      [data-testid="stDataFrame"],
+      [data-testid="stVegaLiteChart"] div,
+      [data-testid="stVegaLiteChart"] summary,
+      [data-testid="stAlert"],
+      [data-testid="stMarkdownContainer"] code {{
+        border-radius: 0 !important;
+      }}
+      [data-testid="stRadioOption"] div {{ border-radius: 50% !important; }}
+
+      /* No shadow anywhere. Nothing on this page floats above the paper. */
+      [data-testid="stElementToolbarButtonContainer"],
+      [data-testid="stVegaLiteChart"] .vega-actions,
+      [data-testid="stVegaLiteChart"] .vega-actions a {{
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }}
+
+      /* The toolbar that fades in over every chart on hover -- fullscreen, download,
+         the Vega "..." menu. This is the scattered hover animation in person: five
+         figures on a page means five things that light up when the mouse crosses them,
+         on a surface whose whole claim is that it is a printed record. The figures are
+         still readable, still tooltipped, still exportable from `scripts/analyze.py`. */
+      [data-testid="stElementToolbar"],
+      [data-testid="stVegaLiteChart"] .vega-actions,
+      [data-testid="stVegaLiteChart"] summary {{
+        display: none !important;
+      }}
+
+      /* Streamlit's tab strip fades its overflow edge with a gradient. There are five
+         tabs and they fit; where they do not, the rule below scrolls them without
+         painting a gradient onto a page that has none. */
+      [data-testid="stTabs"] [role="tablist"] + button,
+      [data-testid="stTabs"] button[class*="e1lncrqy"] {{
+        background-image: none !important;
+        background: transparent !important;
+      }}
+
+      /* Widgets read as instruments: hairline, square, on the plate. */
+      [data-testid="stSelectbox"] div[class*="react-aria"],
+      [data-testid="stNumberInputContainer"] {{
+        border: 1px solid {RULE} !important;
+        background: {PLATE} !important;
+        transition: none !important;
+      }}
+      [data-testid="stSelectbox"], [data-testid="stNumberInput"] {{ max-width: 22rem; }}
+
+      /* This page does not animate, so nothing on it needs a duration. There is no load
+         sequence, no scroll reveal, no hover that moves: a printed record does not
+         perform for the reader. Every easing here is the framework's own -- a select box
+         easing its border, an expander rotating its chevron, a status pill fading -- and
+         killing them wholesale is both more honest than naming each one and more durable:
+         the next streamlit upgrade cannot smuggle a new one in behind a fresh hash. */
+      [data-testid="stAppViewContainer"] *,
+      [data-testid="stSidebar"] * {{
+        transition: none !important;
+        animation: none !important;
+      }}
+
+      /* Keyboard focus must stay visible: this is the one place a ring is not decoration.
+         It is the ink, so it cannot be mistaken for a finding. */
+      [data-testid="stAppViewContainer"] :focus-visible {{
+        outline: 2px solid {INK};
+        outline-offset: 2px;
+      }}
 
       @media (prefers-reduced-motion: reduce) {{
         * {{ animation: none !important; transition: none !important; }}
@@ -398,16 +580,16 @@ def _leakage(run_dir: str, stamp: float, agent_id: str, seed: int):
 def _axis(title: str | None, **kw) -> alt.Axis:
     return alt.Axis(
         title=title,
-        titleFont=MONO,
+        titleFont=MONO_FACE,
         titleFontSize=10,
-        titleColor=INK_3,
+        titleColor=GRAPHITE,
         titleFontWeight="normal",
-        labelFont=MONO,
+        labelFont=MONO_FACE,
         labelFontSize=10,
-        labelColor=INK_3,
+        labelColor=GRAPHITE,
         domainColor=RULE,
         tickColor=RULE,
-        gridColor="#EBEEF1",
+        gridColor="#E3E6E0",
         **kw,
     )
 
@@ -425,14 +607,14 @@ def _style(chart: alt.Chart, height: int) -> alt.Chart:
     """One place for the chart furniture, so no two figures disagree about it."""
     return (
         chart.properties(width="container", height=height)
-        .configure_view(strokeWidth=0, fill=PANEL)
+        .configure_view(strokeWidth=0, fill=PLATE)
         .configure_legend(
-            labelFont=MONO,
+            labelFont=MONO_FACE,
             labelFontSize=10,
-            labelColor=INK_2,
-            titleFont=MONO,
+            labelColor=GRAPHITE,
+            titleFont=MONO_FACE,
             titleFontSize=9,
-            titleColor=INK_3,
+            titleColor=GRAPHITE,
             symbolStrokeWidth=2,  # a line chart's legend key IS a stroke; zero hides it
             symbolSize=90,
             orient="top-right",
@@ -458,25 +640,26 @@ def _domain(values, min_span: float, center: float | None = None) -> list[float]
     return [min(lo, mid - half) - pad, max(hi, mid + half) + pad]
 
 
-def _stats(items: list[tuple[str, str, str]]) -> None:
+def _register(items: list[tuple[str, str, str]]) -> None:
     """A row of figures: label, value, and the qualifier that keeps the value honest.
 
     Replaces st.metric because the interval must be visibly subordinate to the point
-    estimate rather than crammed into it at the same weight.
+    estimate rather than crammed into it at the same weight — and because st.metric is a
+    card, and a card is a thing that floats above paper.
     """
     cells = "".join(
-        f'<div class="stat"><div class="stat-l">{label}</div>'
-        f'<div class="stat-v">{value}</div>'
-        f'<div class="stat-s">{sub or "&nbsp;"}</div></div>'
+        f'<div class="reg-c"><div class="reg-l">{label}</div>'
+        f'<div class="reg-v">{value}</div>'
+        f'<div class="reg-s">{sub or "&nbsp;"}</div></div>'
         for label, value, sub in items
     )
-    st.markdown(f'<div class="stats">{cells}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="reg">{cells}</div>', unsafe_allow_html=True)
 
 
-REGIME_HUE = {"bull": BULL, "bear": BEAR, "chop": CHOP}
-REGIME_COLOR = alt.Scale(domain=["bull", "bear", "chop"], range=[BULL, BEAR, CHOP])
-# Shape carries the regime too: bull/bear as green/red alone is unreadable to roughly one
-# viewer in twelve, and this gets projected.
+# Regime is encoded by shape first and ink density second, never by hue. Bull/bear as
+# green/red is unreadable to roughly one viewer in twelve and this gets projected -- and
+# on this page a hue would additionally claim a valence the benchmark does not have.
+REGIME_COLOR = alt.Scale(domain=["bull", "bear", "chop"], range=[INK, GRAPHITE, SCREEN])
 REGIME_SHAPE = alt.Scale(domain=["bull", "bear", "chop"], range=["circle", "triangle-up", "square"])
 
 
@@ -503,16 +686,21 @@ def _note(text: str) -> None:
     st.markdown(f'<div class="note">{text}</div>', unsafe_allow_html=True)
 
 
-def _signed(value: float, text: str) -> str:
-    """A figure coloured by its sign, judged on what the reader can actually see.
+def _gap(value: float, text: str) -> str:
+    """A gap, inked only where the reader can actually see one.
 
-    The colour follows the *rendered* number, not the float behind it. An edge of 7e-8
-    formats as `+0.00` and is zero to anyone reading the screen; painting it green
-    because the last bits of a double happen to be positive is a lie told in colour.
+    PROCESS is the page's one chromatic ink and it means "two things that should agree,
+    don't". Whether they agree is judged on the *rendered* figure, not the float behind
+    it: an edge of 7e-8 formats as `+0.00` and is zero to anyone reading the screen.
+    Inking that magenta would announce a finding that is a rounding error — a lie told in
+    colour, which is the one thing this surface may never do.
+
+    Levels are not gaps. A Sharpe, a return, a share count is set in plain ink however
+    large it is; only the difference between two things the benchmark holds equal earns
+    the second colour.
     """
     shown_zero = not any(ch in "123456789" for ch in text)
-    cls = "zero" if shown_zero else ("pos" if value > 0 else "neg")
-    return f'<span class="{cls}">{text}</span>'
+    return f'<span class="{"flat" if shown_zero else "gap"}">{text}</span>'
 
 
 def _sharpe(iv) -> str:
@@ -522,8 +710,7 @@ def _sharpe(iv) -> str:
     every cell is `+1.83 [+1.40, +2.20]` is a table nobody reads. Point estimate leads at
     full weight; the interval trails in muted small type on the same line.
     """
-    return (f'{_signed(iv.point, f"{iv.point:+.2f}")}'
-            f'<span class="ci">[{iv.lo:+.2f}, {iv.hi:+.2f}]</span>')
+    return f'{iv.point:+.2f}<span class="ci">[{iv.lo:+.2f}, {iv.hi:+.2f}]</span>'
 
 
 def _table(cols: list[tuple[str, str]], rows: list[dict], lead: bool = False) -> None:
@@ -548,6 +735,150 @@ def _table(cols: list[tuple[str, str]], rows: list[dict], lead: bool = False) ->
         f'<div class="tt-wrap"><table class="tt"><thead><tr>{head}</tr></thead>'
         f'<tbody>{"".join(body)}</tbody></table></div>',
         unsafe_allow_html=True,
+    )
+
+
+# --------------------------------------------------------------- the contact sheet
+
+#: The Sharpe edge at which a window's two impressions count as having missed. This is
+#: the same floor the scatter below already draws with (`_domain(..., 0.40)` is ±0.20),
+#: and it must stay the same number: a cell inked magenta here and a point sitting inside
+#: the flat band there would be one page disagreeing with itself about what an edge is.
+SHEET_MIN_EDGE = 0.20
+
+#: The smallest return span a cell will expose for, as a fraction. A window where the
+#: agent never took a position moves 0%, and a frame auto-fitted to it would enlarge
+#: rounding dust into a pair of wildly diverging curves. Below this the cell draws flat,
+#: because the episode was flat.
+CELL_MIN_SPAN = 0.04
+
+
+def _contact_sheet(run: Run, agent: str, res) -> None:
+    """Every window printed twice — the real path in ink, its twin in a lighter screen —
+    with the magenta reserved for the frames where the two results actually differ.
+
+    **The fringe is not the area between the curves.** That was the first drawing and it
+    was a lie: the twin is matched to its real window on *total return*, not path, so the
+    two curves wander apart mid-window purely because they are different price series and
+    rejoin at the end. On the fixture — whose verdict is "no slope, the question is
+    degenerate" — that drawing filled all thirty cells with magenta. A figure that shouts
+    while the sentence above it says nothing happened is worse than no figure.
+
+    So the ink of each frame is decided by the *Sharpe edge*, the per-window scalar the
+    headline actually regresses: magenta only where |edge| clears SHEET_MIN_EDGE. The
+    curves show you the two impressions; the colour tells you whether the result differed.
+    A run with no edge prints black and white, which is the promise the palette makes.
+
+    Each frame is exposed for its own subject — normalised to its own return range, with
+    a floor — exactly as the frames on a real contact sheet are. That makes the *shape*
+    of two impressions comparable and their amplitudes not; the edge beside each window
+    id is the number that carries magnitude, and the caption says so.
+
+    Ordered by identifiability where a probe can say what that is, so a model that only
+    profits on the windows it recognises pools its magenta at the top left and the thesis
+    is visible before a number is read. Never ordered by edge: sorting a sheet by the
+    quantity it draws manufactures a gradient out of noise.
+    """
+    pairs = run.paired(agent)
+    if not pairs:
+        _note(f"<em>{agent} has no window with both a real and a twin episode — "
+              f"nothing to register.</em>")
+        return
+
+    ident = {p.window_id: p.identifiability for p in res.points} if res else {}
+    ranked = bool(ident) and len({round(v, 6) for v in ident.values()}) > 1
+
+    cells, rows = [], []
+    for real, twin in pairs:
+        rr = [c / real.equity_cents[0] - 1 for c in real.equity_cents]
+        tt = [c / twin.equity_cents[0] - 1 for c in twin.equity_cents]
+        n = min(len(rr), len(tt))
+        rr, tt = rr[:n], tt[:n]
+        edge = real.metrics["sharpe_floored"] - twin.metrics["sharpe_floored"]
+        # The frame's own exposure, floored so a flat episode draws flat.
+        vals = rr + tt
+        mid = (min(vals) + max(vals)) / 2
+        half = max((max(vals) - min(vals)) / 2, CELL_MIN_SPAN / 2)
+        label = f"{real.window_id}  {edge:+.2f}"
+        cells.append({"window": real.window_id, "ident": ident.get(real.window_id),
+                      "edge": edge, "label": label})
+        for t in range(n):
+            rows.append({
+                "label": label, "tick": t,
+                "real": (rr[t] - mid) / half,
+                "twin": (tt[t] - mid) / half,
+                "material": abs(edge) >= SHEET_MIN_EDGE,
+                "edge": edge, "win": real.window_id,
+            })
+
+    cells.sort(key=(lambda c: -c["ident"]) if ranked else (lambda c: c["window"]))
+    order = [c["label"] for c in cells]
+    n_material = sum(1 for c in cells if abs(c["edge"]) >= SHEET_MIN_EDGE)
+    df = pd.DataFrame(rows)
+
+    x = alt.X("tick:Q", axis=None, scale=alt.Scale(domain=[0, 89], nice=False))
+    yscale = alt.Scale(domain=[-1.18, 1.18], nice=False)
+    tip = [alt.Tooltip("win:N", title="window"),
+           alt.Tooltip("edge:Q", title="sharpe edge", format="+.3f")]
+
+    fringe = (
+        alt.Chart().mark_area(color=PROCESS, opacity=0.85)
+        .transform_filter(alt.datum.material)
+        .encode(x=x, y=alt.Y("real:Q", axis=None, scale=yscale), y2="twin:Q", tooltip=tip)
+    )
+    twin_line = alt.Chart().mark_line(
+        color=GRAPHITE, strokeWidth=0.9, strokeDash=[2.5, 2]
+    ).encode(x=x, y=alt.Y("twin:Q", axis=None, scale=yscale), tooltip=tip)
+    real_line = alt.Chart().mark_line(color=INK, strokeWidth=1.25).encode(
+        x=x, y=alt.Y("real:Q", axis=None, scale=yscale), tooltip=tip)
+
+    sheet = (
+        alt.layer(fringe, twin_line, real_line, data=df)
+        .properties(width=80, height=50)
+        .facet(
+            facet=alt.Facet(
+                "label:N", sort=order, title=None,
+                header=alt.Header(labelFont=MONO_FACE, labelFontSize=8.5, labelColor=INK,
+                                  labelAnchor="start", labelPadding=1,
+                                  labelBaseline="bottom"),
+            ),
+            columns=10,
+            spacing=9,
+        )
+        .configure_view(strokeWidth=0, fill=PLATE)
+    )
+
+    st.markdown(
+        f'<div class="key">'
+        f'<span><i class="k-real"></i>real</span>'
+        f'<span><i class="k-twin"></i>twin</span>'
+        f'<span><i class="k-gap"></i>|edge| ≥ {SHEET_MIN_EDGE:.2f}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    with st.container(key="contact_sheet"):
+        st.altair_chart(sheet, theme=None, use_container_width=False)
+
+    _note(
+        f"One frame per window, <b>{len(cells)} of them</b>: the real window in ink, its "
+        f"twin dashed over it. The figure beside each window id is that window's "
+        f"<b>Sharpe edge</b> — real minus twin — and it is the same quantity the slope "
+        f"below regresses. <b>A frame is inked magenta only where |edge| ≥ "
+        f"{SHEET_MIN_EDGE:.2f}</b>"
+        + (f": <b>{n_material} of {len(cells)}</b> here."
+           if n_material else
+           f", and <b>none of these {len(cells)} clears it</b> — so this sheet prints "
+           f"black and white, which is what a run with no edge is supposed to look like.")
+        + f" Each frame is exposed for its own window, so the <em>shape</em> of the two "
+        f"impressions is comparable across the sheet and their <em>amplitude</em> is not — "
+        f"the edge figure carries that.<br>"
+        + (f"Ordered by identifiability, hardest-to-name last: if the profit lives where "
+           f"<b>{agent}</b> recognises the chart, the magenta pools at the top left."
+           if ranked else
+           "Ordered by window id. <em>Identifiability cannot rank this sheet — "
+           + ("no probe has scored this run" if not ident else
+              "every window shares one identifiability, so there is no order to impose")
+           + ".</em>")
     )
 
 
@@ -620,6 +951,9 @@ with headline:
             "compares that against its twin; scripted baselines have nothing to recognise, "
             "so there is no question to ask here.",
         )
+        agent = st.selectbox("Agent", run.agents, key=f"headline_agent__{run_id}")
+        _lbl("The contact sheet · every window printed twice, and where they missed")
+        _contact_sheet(run, agent, None)
     else:
         agent = st.selectbox("Agent", run.llms, key=f"headline_agent__{run_id}")
         res = _leakage(str(run_dir), stamp, agent, int(seed))
@@ -666,16 +1000,20 @@ with headline:
                     f"The trading result stands on its own.",
                 )
 
-            _stats([
+        _lbl("The contact sheet · every window printed twice, and where they missed")
+        _contact_sheet(run, agent, res)
+
+        if res is not None:
+            _register([
                 ("Edge ~ identifiability",
-                 f"{res.slope.slope:+.3f}" if defined else "—",
+                 _gap(res.slope.slope, f"{res.slope.slope:+.3f}") if defined else "—",
                  "the headline slope" if defined else "identifiability does not vary"),
                 ("Sharpe edge (real − twin)",
-                 _signed(res.edge.point, f"{res.edge.point:+.2f}"),
+                 _gap(res.edge.point, f"{res.edge.point:+.2f}"),
                  f"[{res.edge.lo:+.2f}, {res.edge.hi:+.2f}]"),
                 ("Identifiability",
-                 _signed(res.calibrated_identifiability.point,
-                         f"{res.calibrated_identifiability.point:+.3f}"),
+                 _gap(res.calibrated_identifiability.point,
+                      f"{res.calibrated_identifiability.point:+.3f}"),
                  f"[{res.calibrated_identifiability.lo:+.3f}, "
                  f"{res.calibrated_identifiability.hi:+.3f}]"),
                 ("Windows", f"{len(res.points)}", f"chance {res.chance:.3f}"),
@@ -692,13 +1030,15 @@ with headline:
             xdom = _domain(list(df["identifiability"]), 0.30, center=0.0)
             ydom = _domain(list(df["edge"]), 0.40, center=0.0)
 
+            _lbl("Edge against identifiability · the regression the claim rests on")
             base = alt.Chart(df)
             zero = (
                 alt.Chart(pd.DataFrame({"y": [0.0]}))
-                .mark_rule(color=INK_3, strokeDash=[3, 3], strokeWidth=1)
+                .mark_rule(color=RULE, strokeWidth=1)
                 .encode(y=alt.Y("y:Q", scale=alt.Scale(domain=ydom, nice=False)))
             )
-            pts = base.mark_point(filled=True, size=110, opacity=0.85, strokeWidth=0).encode(
+            pts = base.mark_point(filled=True, size=110, opacity=0.9,
+                                  stroke=INK, strokeWidth=0.6).encode(
                 x=alt.X("identifiability:Q",
                         axis=_axis("calibrated identifiability   (p_real − p_twin)",
                                    format="+.2f", tickCount=7),
@@ -718,7 +1058,7 @@ with headline:
             if defined:
                 layers.append(
                     base.transform_regression("identifiability", "edge")
-                    .mark_line(color=ACCENT, strokeWidth=2, strokeDash=[6, 4])
+                    .mark_line(color=PROCESS, strokeWidth=2)
                     .encode(x="identifiability:Q", y="edge:Q")
                 )
             _chart(alt.layer(*layers), 360)
@@ -740,62 +1080,92 @@ with headline:
 # ------------------------------------------------------------------------- scoreboard
 
 with board:
-    track = st.radio("Track", TRACKS, horizontal=True, key="board_track")
-    rows = scoreboard.build(run, track, seed=int(seed))
+    real_rows = scoreboard.build(run, "real", seed=int(seed))
+    twin_rows = {r.agent_id: r for r in scoreboard.build(run, "twin", seed=int(seed))}
 
-    if not rows:
-        st.info(f"No scorable episodes on the {track} track.")
+    if not real_rows:
+        st.info("No scorable episodes on the real track.")
     else:
-        top = rows[0]
+        top = real_rows[0]
         _verdict(
-            f"Who traded the {track} track best?",
+            "Who traded the real track best, and did the twin agree?",
             f"<b>{top.agent_id}</b> leads at <b>{top.sharpe}</b> median floored Sharpe "
             f"over {top.n} episodes. Read the per-regime panels below before believing it: "
             f"<em>ten episodes a cell is a small sample, and the intervals say so.</em>",
         )
 
-        _lbl(f"Pooled · {track} · ranked by median floored Sharpe")
+        # Real and twin sit in one table rather than behind a track toggle: the twin is
+        # not another dataset to browse, it is the control this agent's real number is
+        # only meaningful against. A radio button asks the reader to hold one column in
+        # their head while they fetch the other, which is the comparison the benchmark
+        # exists to make and the one thing the page should never make them do.
+        _lbl("Pooled · median floored Sharpe, real against its twin · ranked by real")
         _table(
-            [("agent", "agent_l"), ("", "kind_l"), ("n", "n"), ("sharpe (floored)", "sh_l"),
-             ("raw", "raw"), ("return", "ret"), ("max dd", "dd"), ("turnover", "to"),
+            [("agent", "agent_l"), ("", "kind_l"), ("n", "n"),
+             ("real", "real"), ("twin", "twin"), ("edge", "edge"),
+             ("return", "ret"), ("max dd", "dd"), ("turnover", "to"),
              ("fees", "fees"), ("in mkt", "mkt"), ("trades", "tr"), ("floor", "fl")],
             [{"agent_l": r.agent_id, "agent_l__cls": "name",
               "kind_l": r.kind, "kind_l__cls": "kind",
               "n": r.n,
-              "sh_l": _sharpe(r.sharpe),
-              "raw": _signed(r.sharpe_raw_median, f"{r.sharpe_raw_median:+.2f}"),
-              "ret": _signed(r.total_return, f"{r.total_return:+.1%}"),
+              "real": _sharpe(r.sharpe),
+              "twin": (f"{twin_rows[r.agent_id].sharpe.point:+.2f}"
+                       if r.agent_id in twin_rows else "—"),
+              "edge": (_gap(r.sharpe.point - twin_rows[r.agent_id].sharpe.point,
+                            f"{r.sharpe.point - twin_rows[r.agent_id].sharpe.point:+.2f}")
+                       if r.agent_id in twin_rows else "—"),
+              "ret": f"{r.total_return:+.1%}",
               "dd": f"{r.max_drawdown:.1%}",
               "to": f"{r.turnover:.2f}",
               "fees": f"${r.fees_cents / 100:,.0f}",
               "mkt": f"{r.time_in_market:.0%}",
               "tr": f"{r.n_trades:.1f}",
-              "fl": f"{r.pct_floor_binding:.0%}"} for r in rows],
+              "fl": f"{r.pct_floor_binding:.0%}"} for r in real_rows],
             lead=True,
         )
         _note(
             "The volatility floor is what stops a lucky one-percent position posting a "
             "Sharpe of +30 — <code>floor</code> is how often it caught this agent. "
             "<b>Do not quote a pooled “beat buy-and-hold”:</b> the 10/10/10 regime balance "
-            "forces that median to roughly zero by construction. Compare within a regime."
+            "forces that median to roughly zero by construction. Compare within a regime. "
+            "<code>edge</code> is real minus twin: for a scripted baseline it is the "
+            "difference between two charts, not a finding — <em>only a model can "
+            "recognise anything.</em>"
         )
 
-        _lbl("By regime · the primary trading result (D12)")
-        by_regime = scoreboard.by_regime(run, track, seed=int(seed))
+        _lbl("By regime · real track · the primary trading result (D12)")
+        by_regime = scoreboard.by_regime(run, "real", seed=int(seed))
         live = [(k, v) for k, v in by_regime.items() if v]
         for col, (regime, rrows) in zip(st.columns(len(live) or 1), live):
             with col:
-                hue = REGIME_HUE[regime]
                 st.markdown(
-                    f'<div class="lbl" style="border-color:{hue};color:{hue}">{regime}</div>',
+                    f'<div class="lbl" style="color:{INK}">{regime}</div>',
                     unsafe_allow_html=True,
                 )
                 _table(
                     [("agent", "agent_l"), ("n", "n"), ("sharpe", "sh")],
                     [{"agent_l": r.agent_id, "agent_l__cls": "name", "n": r.n,
-                      "sh": _signed(r.sharpe.point, f"{r.sharpe.point:+.2f}")}
+                      "sh": f"{r.sharpe.point:+.2f}"}
                      for r in rrows],
                 )
+
+        twin_by_regime = [(k, v) for k, v in
+                          scoreboard.by_regime(run, "twin", seed=int(seed)).items() if v]
+        if twin_by_regime:
+            with st.expander("The same panels on the twin track — the control"):
+                for col, (regime, rrows) in zip(st.columns(len(twin_by_regime)),
+                                                twin_by_regime):
+                    with col:
+                        st.markdown(
+                            f'<div class="lbl" style="color:{GRAPHITE}">{regime} · twin</div>',
+                            unsafe_allow_html=True,
+                        )
+                        _table(
+                            [("agent", "agent_l"), ("n", "n"), ("sharpe", "sh")],
+                            [{"agent_l": r.agent_id, "agent_l__cls": "name", "n": r.n,
+                              "sh": f"{r.sharpe.point:+.2f}"}
+                             for r in rrows],
+                        )
 
 
 # --------------------------------------------------------------------------- learning
@@ -836,6 +1206,9 @@ with curves:
                 .mark_rule(color=RULE, strokeWidth=1)
                 .encode(y="y:Q")
             )
+            # `excess` carries the magenta because it is a gap by construction: what the
+            # agent scored minus what the window was worth. The two levels it is built
+            # from stay in ink.
             line = (
                 alt.Chart(long)
                 .mark_line(strokeWidth=1.9, opacity=0.95)
@@ -845,7 +1218,8 @@ with curves:
                             scale=alt.Scale(domain=[0, max(c.index)], nice=False)),
                     y=alt.Y("sharpe:Q", axis=_axis("floored sharpe", tickCount=5)),
                     color=alt.Color("series:N",
-                                    scale=alt.Scale(domain=order, range=[ACCENT, INK, INK_3]),
+                                    scale=alt.Scale(domain=order,
+                                                    range=[PROCESS, INK, GRAPHITE]),
                                     legend=alt.Legend(orient="top", direction="horizontal",
                                                       title=None, offset=4)),
                     strokeDash=alt.StrokeDash(
@@ -898,6 +1272,8 @@ with rel:
          + ". A malformed call costs no money — only time, and therefore decisions.")
     )
 
+    # A malformed call is the agent failing to register with the engine, so the counts
+    # that mean misbehaviour take the magenta and a clean board prints black on white.
     _lbl("Counted from calls[] — the primary record, not the cached summary")
     _table(
         [("agent", "agent_l"), ("", "kind_l"), ("eps", "eps"), ("calls", "calls"),
@@ -907,16 +1283,18 @@ with rel:
         [{"agent_l": r.agent_id, "agent_l__cls": "name",
           "kind_l": r.kind, "kind_l__cls": "kind",
           "eps": r.n_episodes, "calls": f"{r.n_calls:,}",
-          "inv": r.n_invalid or "—",
-          "invp": f"{r.invalid_rate:.1%}" if r.n_invalid else "—",
-          "sch": f"{r.schema_error_rate:.1%}" if r.schema_error_rate else "—",
-          "forced": f"{r.forced_waits_per_episode:.2f}" if r.forced_waits_per_episode else "—",
+          "inv": _gap(r.n_invalid, str(r.n_invalid)) if r.n_invalid else "—",
+          "invp": _gap(r.invalid_rate, f"{r.invalid_rate:.1%}") if r.n_invalid else "—",
+          "sch": _gap(r.schema_error_rate, f"{r.schema_error_rate:.1%}")
+                 if r.schema_error_rate else "—",
+          "forced": _gap(r.forced_waits_per_episode, f"{r.forced_waits_per_episode:.2f}")
+                    if r.forced_waits_per_episode else "—",
           "nudge": f"{r.prose_nudges_per_episode:.2f}" if r.prose_nudges_per_episode else "—",
           "cap": f"{r.read_cap_hits_per_episode:.2f}" if r.read_cap_hits_per_episode else "—",
           "wall": f"{r.median_wallclock_s:.0f}s",
-          "ncap": r.n_capped or "—",
-          "err": r.n_agent_errors or "—",
-          "ok": '<span class="pos">clean</span>' if r.clean else '<span class="neg">·</span>',
+          "ncap": _gap(r.n_capped, str(r.n_capped)) if r.n_capped else "—",
+          "err": _gap(r.n_agent_errors, str(r.n_agent_errors)) if r.n_agent_errors else "—",
+          "ok": '<span class="flat">clean</span>' if r.clean else '<span class="gap">·</span>',
           } for r in rows],
     )
     _note(
@@ -964,12 +1342,13 @@ with inspect:
             f"<b>{m['time_in_market']:.0%}</b> of the window.",
         )
 
-        _stats([
-            ("Sharpe (floored)", _signed(m["sharpe_floored"], f"{m['sharpe_floored']:+.3f}"),
+        # These are levels, not gaps: they stay in ink however large they are. Only the
+        # difference between two things the benchmark holds equal earns the second colour.
+        _register([
+            ("Sharpe (floored)", f"{m['sharpe_floored']:+.3f}",
              "vol floor binding" if m.get("vol_floor_binding") else "floor not binding"),
-            ("Sharpe (raw)", _signed(m["sharpe_raw"], f"{m['sharpe_raw']:+.3f}"),
-             "unfloored — diagnostic"),
-            ("Total return", _signed(m["total_return"], f"{m['total_return']:+.2%}"),
+            ("Sharpe (raw)", f"{m['sharpe_raw']:+.3f}", "unfloored — diagnostic"),
+            ("Total return", f"{m['total_return']:+.2%}",
              f"max dd {m['max_drawdown']:.1%}"),
             ("Fees paid", f"${m['fees_paid_cents'] / 100:,.2f}",
              f"{m['n_trades']:.0f} trades · {m['turnover']:.2f}x turnover"),
@@ -993,7 +1372,7 @@ with inspect:
         _lbl("Equity — every fee and every slippage cost is already inside this curve")
         area = (
             alt.Chart(eq).mark_area(
-                line={"color": ACCENT, "strokeWidth": 1.8}, opacity=0.12, color=ACCENT
+                line={"color": INK, "strokeWidth": 1.8}, opacity=0.1, color=INK
             ).encode(
                 x=alt.X("tick:Q", axis=_axis("tick"), scale=alt.Scale(nice=False, domain=[0, 89])),
                 y=alt.Y("equity:Q", axis=_axis("equity", format="$,.0f"),
@@ -1005,7 +1384,7 @@ with inspect:
         )
         opening = (
             alt.Chart(pd.DataFrame({"y": [start]}))
-            .mark_rule(color=INK_3, strokeDash=[3, 3], strokeWidth=1)
+            .mark_rule(color=GRAPHITE, strokeDash=[3, 3], strokeWidth=1)
             .encode(y=alt.Y("y:Q", scale=alt.Scale(domain=[lo, hi], nice=False)))
         )
         _chart(alt.layer(area, opening), 260)
@@ -1018,7 +1397,7 @@ with inspect:
         pos = pd.DataFrame({"tick": range(len(ep.shares_by_tick)), "shares": ep.shares_by_tick})
         _chart(
             alt.Chart(pos).mark_line(
-                interpolate="step-after", strokeWidth=1.6, color=INK_2
+                interpolate="step-after", strokeWidth=1.6, color=GRAPHITE
             ).encode(
                 x=alt.X("tick:Q", axis=_axis("tick"), scale=alt.Scale(nice=False, domain=[0, 89])),
                 # No axis title: at this height it collides with its own tick labels, and
@@ -1041,7 +1420,7 @@ with inspect:
                 [{"side_l": f['side'], "side_l__cls": "name",
                   "tick": f["fill_tick"],
                   "price": f"${f['fill_price']:,.2f}",
-                  "sh": _signed(f["shares_delta"], f"{f['shares_delta']:+.4f}"),
+                  "sh": f"{f['shares_delta']:+.4f}",
                   "not": f"${f['gross_notional_cents'] / 100:,.0f}",
                   "fr": f"${f['friction_cents'] / 100:,.2f}"} for f in ep.fills],
             )

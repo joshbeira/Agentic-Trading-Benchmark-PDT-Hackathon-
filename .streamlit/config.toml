@@ -1,17 +1,59 @@
 # The demo runs on a projector in front of judges, so the theme commits to light:
 # dark rooms make dark UIs bloom and the tables are the point. Colours match the
 # tokens at the top of scripts/app.py -- change them in both places or not at all.
+#
+# primaryColor is INK, not PROCESS. Streamlit spends primaryColor on widget selection
+# and focus rings, and on this page the magenta means "two things that should agree,
+# don't". A selected radio button is not a finding.
+#
+# The faces are vendored under scripts/static/ (streamlit resolves `static/` against
+# the main script) and served by streamlit itself. No CDN: the repo's promise is that
+# the surface renders with the venue wifi down, and a <link> to a font host would
+# quietly break it. Both families are OFL, which is what makes shipping them legal.
 
 [theme]
 base = "light"
-primaryColor = "#17457A"
-backgroundColor = "#F5F6F8"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#0E1419"
-font = "sans serif"
+primaryColor = "#14181B"
+backgroundColor = "#EDEFEA"
+secondaryBackgroundColor = "#FBFCF9"
+textColor = "#14181B"
+font = "Spectral"
+headingFont = "Spectral"
+codeFont = "IBM Plex Mono"
+
+[[theme.fontFaces]]
+family = "Spectral"
+url = "app/static/Spectral-Regular.woff2"
+style = "normal"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Spectral"
+url = "app/static/Spectral-Italic.woff2"
+style = "italic"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Spectral"
+url = "app/static/Spectral-SemiBold.woff2"
+style = "normal"
+weight = 600
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/IBMPlexMono-Regular.woff2"
+style = "normal"
+weight = 400
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/IBMPlexMono-SemiBold.woff2"
+style = "normal"
+weight = 600
 
 [server]
 headless = true
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: joshbeira-trading-benchmark
+    runtime: python
+    plan: free
+    branch: codex/free-hosting
+    buildCommand: pip install .
+    startCommand: streamlit run scripts/app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true --browser.gatherUsageStats false
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.12

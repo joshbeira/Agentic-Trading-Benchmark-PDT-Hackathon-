@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: joshbeira-trading-benchmark
+    name: pdtbench
     runtime: python
     plan: free
     branch: codex/free-hosting
